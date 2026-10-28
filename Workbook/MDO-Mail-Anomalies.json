@@ -177,6 +177,14 @@
             "linkLabel": "13 Look-alike / new domains",
             "subTarget": "lookalike",
             "style": "link"
+          },
+          {
+            "id": "tab-llm",
+            "cellValue": "selectedTab",
+            "linkTarget": "parameter",
+            "linkLabel": "14 LLM-detected mail",
+            "subTarget": "llm",
+            "style": "link"
           }
         ]
       },
@@ -199,7 +207,7 @@
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "let Email = EmailEvents\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by NetworkMessageId, RecipientEmailAddress;\nlet Clicks = UrlClickEvents | where TimeGenerated {TimeRange};\nunion isfuzzy=true\n(Email | where EmailDirection == \"Inbound\" and DetectionMethods has \"Mail bombing\" | summarize Value = dcount(RecipientEmailAddress) | extend Anomaly = \"01 Email bombing\", Unit = \"users targeted\"),\n(Email | join kind=inner (EmailUrlInfo | where TimeGenerated {TimeRange} | where UrlLocation == \"QRCode\" | distinct NetworkMessageId) on NetworkMessageId | summarize Value = dcount(NetworkMessageId) | extend Anomaly = \"03 QR code mail\", Unit = \"messages\"),\n(Email | where EmailDirection == \"Inbound\" and SenderFromDomain =~ RecipientDomain | extend A = parse_json(AuthenticationDetails) | where DetectionMethods has \"Spoof intra-org\" or (isempty(Connectors) and tostring(A.SPF) !~ \"pass\" and tostring(A.DMARC) !in~ (\"pass\", \"bestguesspass\")) | summarize Value = count() | extend Anomaly = \"04 Direct Send / intra-org spoof\", Unit = \"messages\"),\n(EmailAttachmentInfo | where TimeGenerated {TimeRange} | where FileName matches regex @\"(?i)\\.(svgz?|s?html?|xhtml|mhtml?)$\" | summarize Value = dcount(NetworkMessageId) | extend Anomaly = \"05 HTML/SVG attachments\", Unit = \"messages\"),\n(Clicks | where ThreatTypes has \"Phish\" and (ActionType == \"ClickAllowed\" or tostring(IsClickedThrough) in (\"1\", \"true\", \"True\")) | summarize Value = dcount(AccountUpn) | extend Anomaly = \"06 Phish clicks allowed\", Unit = \"users\"),\n(Clicks | where UrlChain has_any (\"microsoft.com/devicelogin\", \"oauth2/deviceauth\") | summarize Value = dcount(AccountUpn) | extend Anomaly = \"07 Device-login URL clicks\", Unit = \"users\"),\n(Email | where EmailDirection == \"Inbound\" and DetectionMethods has \"Impersonation\" | summarize Value = count() | extend Anomaly = \"08 Impersonation\", Unit = \"messages\"),\n(Email | where EmailDirection == \"Inbound\" and ThreatTypes has \"Phish\" and UrlCount == 0 | summarize Value = count() | extend Anomaly = \"09 URL-less phish (callback)\", Unit = \"messages\"),\n(Email | where EmailDirection == \"Outbound\" and (isnotempty(ThreatTypes) or DeliveryAction == \"Blocked\") | summarize Value = dcount(SenderFromAddress) | extend Anomaly = \"10 Outbound flagged senders\", Unit = \"senders\"),\n(EmailPostDeliveryEvents | where TimeGenerated {TimeRange} | where ActionType has \"ZAP\" and ActionResult !~ \"Success\" | summarize Value = count() | extend Anomaly = \"11 Failed ZAP actions\", Unit = \"actions\"),\n(CloudAppEvents | where TimeGenerated {TimeRange} | where ActionType in (\"New-InboxRule\", \"Set-InboxRule\", \"UpdateInboxRules\") | summarize Value = count() | extend Anomaly = \"12 Inbox rule changes\", Unit = \"events\")\n| order by Anomaly asc",
+              "query": "let Email = EmailEvents\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by NetworkMessageId, RecipientEmailAddress;\nlet Clicks = UrlClickEvents | where TimeGenerated {TimeRange};\nunion isfuzzy=true\n(Email | where EmailDirection == \"Inbound\" and DetectionMethods has \"Mail bombing\" | summarize Value = dcount(RecipientEmailAddress) | extend Anomaly = \"01 Email bombing\", Unit = \"users targeted\"),\n(Email | join kind=inner (EmailUrlInfo | where TimeGenerated {TimeRange} | where UrlLocation == \"QRCode\" | distinct NetworkMessageId) on NetworkMessageId | summarize Value = dcount(NetworkMessageId) | extend Anomaly = \"03 QR code mail\", Unit = \"messages\"),\n(Email | where EmailDirection == \"Inbound\" and SenderFromDomain =~ RecipientDomain | extend A = parse_json(AuthenticationDetails) | where DetectionMethods has \"Spoof intra-org\" or (isempty(Connectors) and tostring(A.SPF) !~ \"pass\" and tostring(A.DMARC) !in~ (\"pass\", \"bestguesspass\")) | summarize Value = count() | extend Anomaly = \"04 Direct Send / intra-org spoof\", Unit = \"messages\"),\n(EmailAttachmentInfo | where TimeGenerated {TimeRange} | where FileName matches regex @\"(?i)\\.(svgz?|s?html?|xhtml|mhtml?)$\" | summarize Value = dcount(NetworkMessageId) | extend Anomaly = \"05 HTML/SVG attachments\", Unit = \"messages\"),\n(Clicks | where ThreatTypes has \"Phish\" and (ActionType == \"ClickAllowed\" or tostring(IsClickedThrough) in (\"1\", \"true\", \"True\")) | summarize Value = dcount(AccountUpn) | extend Anomaly = \"06 Phish clicks allowed\", Unit = \"users\"),\n(Clicks | where UrlChain has_any (\"microsoft.com/devicelogin\", \"oauth2/deviceauth\") | summarize Value = dcount(AccountUpn) | extend Anomaly = \"07 Device-login URL clicks\", Unit = \"users\"),\n(Email | where EmailDirection == \"Inbound\" and DetectionMethods has \"Impersonation\" | summarize Value = count() | extend Anomaly = \"08 Impersonation\", Unit = \"messages\"),\n(Email | where EmailDirection == \"Inbound\" and ThreatTypes has \"Phish\" and UrlCount == 0 | summarize Value = count() | extend Anomaly = \"09 URL-less phish (callback)\", Unit = \"messages\"),\n(Email | where EmailDirection == \"Outbound\" and (isnotempty(ThreatTypes) or DeliveryAction == \"Blocked\") | summarize Value = dcount(SenderFromAddress) | extend Anomaly = \"10 Outbound flagged senders\", Unit = \"senders\"),\n(EmailPostDeliveryEvents | where TimeGenerated {TimeRange} | where ActionType has \"ZAP\" and ActionResult !~ \"Success\" | summarize Value = count() | extend Anomaly = \"11 Failed ZAP actions\", Unit = \"actions\"),\n(CloudAppEvents | where TimeGenerated {TimeRange} | where ActionType in (\"New-InboxRule\", \"Set-InboxRule\", \"UpdateInboxRules\") | summarize Value = count() | extend Anomaly = \"12 Inbox rule changes\", Unit = \"events\"),\n(Email | where EmailDirection == \"Inbound\" and DetectionMethods has \"LLM content analysis\" | summarize Value = count() | extend Anomaly = \"14 LLM content analysis\", Unit = \"messages\")\n| order by Anomaly asc",
               "size": 3,
               "title": "Anomaly summary",
               "timeContextFromParameter": "TimeRange",
@@ -1176,6 +1184,126 @@
         "value": "lookalike"
       },
       "name": "group-lookalike"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "### Mail flagged by MDO's LLM content analysis\nDefender for Office 365 runs purpose-built large language models that read the message's content and **intent** (for example urgency, payment-change requests, credential requests, or callback lures). Matches show up as the **LLM content analysis** detection technology.\n\n**How to read this tab:** this is mail that *Microsoft's* AI flagged. It does **not** prove the attacker used AI to write it, and nothing in the data shows that. **LLM-only** detections, where no reputation, detonation, impersonation, or fingerprint signal also fired, are the best available stand-in for novel, well-written lures (often AI-assisted) that traditional filters would have missed. Workbook only."
+            },
+            "name": "text-52"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let Email = EmailEvents\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by NetworkMessageId, RecipientEmailAddress;\nlet LLM = Email\n| where EmailDirection == \"Inbound\" and DetectionMethods has \"LLM content analysis\"\n| extend DM = parse_json(DetectionMethods)\n| mv-expand Threat = bag_keys(DM) to typeof(string)\n| mv-expand Tech = DM[Threat] to typeof(string)\n| summarize Techs = make_set(Tech), Threats = make_set(Threat),\n    take_any(TimeGenerated, SenderFromAddress, SenderFromDomain, Subject, DeliveryAction, DeliveryLocation, UrlCount, AttachmentCount, EmailDirection)\n    by NetworkMessageId, RecipientEmailAddress\n| extend OtherTechs = set_difference(Techs, dynamic([\"LLM content analysis\"]))\n| extend LlmOnly = array_length(OtherTechs) == 0;\nLLM | mv-expand Threat = Threats to typeof(string)\n| summarize count() by Threat, bin(TimeGenerated, {TimeRange:grain})",
+              "size": 0,
+              "title": "LLM-flagged messages by threat type",
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart",
+              "noDataMessage": "No matching activity in the selected time range."
+            },
+            "name": "query-53",
+            "customWidth": "50"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let Email = EmailEvents\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by NetworkMessageId, RecipientEmailAddress;\nlet LLM = Email\n| where EmailDirection == \"Inbound\" and DetectionMethods has \"LLM content analysis\"\n| extend DM = parse_json(DetectionMethods)\n| mv-expand Threat = bag_keys(DM) to typeof(string)\n| mv-expand Tech = DM[Threat] to typeof(string)\n| summarize Techs = make_set(Tech), Threats = make_set(Threat),\n    take_any(TimeGenerated, SenderFromAddress, SenderFromDomain, Subject, DeliveryAction, DeliveryLocation, UrlCount, AttachmentCount, EmailDirection)\n    by NetworkMessageId, RecipientEmailAddress\n| extend OtherTechs = set_difference(Techs, dynamic([\"LLM content analysis\"]))\n| extend LlmOnly = array_length(OtherTechs) == 0;\nLLM | summarize count() by Detection = iff(LlmOnly, \"LLM content analysis only\", \"LLM + other technologies\")",
+              "size": 0,
+              "title": "LLM-only vs. LLM + other detection technologies",
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "piechart",
+              "noDataMessage": "No matching activity in the selected time range."
+            },
+            "name": "query-54",
+            "customWidth": "50"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let Email = EmailEvents\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by NetworkMessageId, RecipientEmailAddress;\nEmail\n| where EmailDirection == \"Inbound\" and isnotempty(DetectionMethods) and DetectionMethods != \"{}\"\n| summarize Total = count(), LLM = countif(DetectionMethods has \"LLM content analysis\") by bin(TimeGenerated, {TimeRange:grain})\n| extend LlmPercent = round(100.0 * LLM / Total, 1)\n| project TimeGenerated, LlmPercent",
+              "size": 0,
+              "title": "Share of malicious inbound mail caught with LLM involvement",
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "timechart",
+              "noDataMessage": "No matching activity in the selected time range."
+            },
+            "name": "query-55",
+            "customWidth": "50"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let Email = EmailEvents\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by NetworkMessageId, RecipientEmailAddress;\nlet LLM = Email\n| where EmailDirection == \"Inbound\" and DetectionMethods has \"LLM content analysis\"\n| extend DM = parse_json(DetectionMethods)\n| mv-expand Threat = bag_keys(DM) to typeof(string)\n| mv-expand Tech = DM[Threat] to typeof(string)\n| summarize Techs = make_set(Tech), Threats = make_set(Threat),\n    take_any(TimeGenerated, SenderFromAddress, SenderFromDomain, Subject, DeliveryAction, DeliveryLocation, UrlCount, AttachmentCount, EmailDirection)\n    by NetworkMessageId, RecipientEmailAddress\n| extend OtherTechs = set_difference(Techs, dynamic([\"LLM content analysis\"]))\n| extend LlmOnly = array_length(OtherTechs) == 0;\nLLM | summarize count() by Shape = case(UrlCount == 0 and AttachmentCount == 0, \"No URL, no attachment (BEC / callback)\",\n    AttachmentCount > 0, \"Has attachment\", \"Has URL\")",
+              "size": 0,
+              "title": "Lure shape of LLM-flagged mail",
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "piechart",
+              "noDataMessage": "No matching activity in the selected time range."
+            },
+            "name": "query-56",
+            "customWidth": "50"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let Email = EmailEvents\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by NetworkMessageId, RecipientEmailAddress;\nlet LLM = Email\n| where EmailDirection == \"Inbound\" and DetectionMethods has \"LLM content analysis\"\n| extend DM = parse_json(DetectionMethods)\n| mv-expand Threat = bag_keys(DM) to typeof(string)\n| mv-expand Tech = DM[Threat] to typeof(string)\n| summarize Techs = make_set(Tech), Threats = make_set(Threat),\n    take_any(TimeGenerated, SenderFromAddress, SenderFromDomain, Subject, DeliveryAction, DeliveryLocation, UrlCount, AttachmentCount, EmailDirection)\n    by NetworkMessageId, RecipientEmailAddress\n| extend OtherTechs = set_difference(Techs, dynamic([\"LLM content analysis\"]))\n| extend LlmOnly = array_length(OtherTechs) == 0;\nLLM | mv-expand OtherTech = OtherTechs to typeof(string)\n| summarize Messages = count() by OtherTech | top 15 by Messages",
+              "size": 0,
+              "title": "Detection technologies that fired together with the LLM",
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "barchart",
+              "noDataMessage": "No matching activity in the selected time range."
+            },
+            "name": "query-57"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let Email = EmailEvents\n| where TimeGenerated {TimeRange}\n| summarize arg_max(TimeGenerated, *) by NetworkMessageId, RecipientEmailAddress;\nlet LLM = Email\n| where EmailDirection == \"Inbound\" and DetectionMethods has \"LLM content analysis\"\n| extend DM = parse_json(DetectionMethods)\n| mv-expand Threat = bag_keys(DM) to typeof(string)\n| mv-expand Tech = DM[Threat] to typeof(string)\n| summarize Techs = make_set(Tech), Threats = make_set(Threat),\n    take_any(TimeGenerated, SenderFromAddress, SenderFromDomain, Subject, DeliveryAction, DeliveryLocation, UrlCount, AttachmentCount, EmailDirection)\n    by NetworkMessageId, RecipientEmailAddress\n| extend OtherTechs = set_difference(Techs, dynamic([\"LLM content analysis\"]))\n| extend LlmOnly = array_length(OtherTechs) == 0;\nLLM\n| project TimeGenerated, RecipientEmailAddress, SenderFromAddress, Subject, Threats, LlmOnly, OtherTechs, UrlCount, AttachmentCount, DeliveryAction, DeliveryLocation\n| order by LlmOnly desc, TimeGenerated desc",
+              "size": 0,
+              "title": "LLM-flagged messages",
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "noDataMessage": "No matching activity in the selected time range.",
+              "gridSettings": {
+                "filter": true,
+                "rowLimit": 500
+              }
+            },
+            "name": "query-58"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selectedTab",
+        "comparison": "isEqualTo",
+        "value": "llm"
+      },
+      "name": "group-llm"
     }
   ],
   "fallbackResourceIds": [],
