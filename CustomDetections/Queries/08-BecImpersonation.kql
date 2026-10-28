@@ -1,0 +1,24 @@
+// MDO-08 | BEC / impersonation mail delivered to a mailbox
+// Hits on mail MDO flagged for user/domain/brand or mailbox-intelligence impersonation
+// that was still delivered to the inbox, OR external mail whose display name exactly
+// matches an internal user's display name (CEO/VIP-style impersonation).
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let internalNames = IdentityInfo
+    | where Timestamp > ago(14d)
+    | where isnotempty(AccountDisplayName)
+    | distinct DisplayName = tolower(AccountDisplayName);
+EmailEvents
+| where Timestamp > ago(lookback)
+| where EmailDirection == "Inbound"
+| where DeliveryAction == "Delivered" and DeliveryLocation == "Inbox/folder"
+| extend ImpersonationDetected = DetectionMethods has_any ("Impersonation user", "Impersonation domain",
+        "Impersonation brand", "Mailbox intelligence impersonation")
+    or EmailActionPolicy has "impersonation"
+| extend DisplayNameMatch = isnotempty(SenderDisplayName)
+    and tolower(trim(@"\s", SenderDisplayName)) in (internalNames)
+    and SenderFromDomain !~ RecipientDomain
+| where ImpersonationDetected or DisplayNameMatch
+| project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+    SenderDisplayName, SenderFromAddress, SenderFromDomain, SenderIPv4, Subject,
+    ImpersonationDetected, DisplayNameMatch, DetectionMethods, EmailActionPolicy, ThreatTypes

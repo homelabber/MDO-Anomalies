@@ -1,0 +1,32 @@
+// MDO-07 | Device code phishing (Storm-2372 tradecraft)
+// Adapted from Microsoft Threat Intelligence's Storm-2372 hunting query.
+// The user clicks a device-login URL from mail/Teams, then within minutes completes a
+// sign-in that is risky or shows the 50199 -> success pattern (pause to enter the code).
+// Frequency: every 1 hour (4 hour lookback). Requires Entra ID P2 (EntraIdSignInEvents).
+let lookback = 4h;
+let clicks = UrlClickEvents
+    | where Timestamp > ago(lookback + 1h)
+    | where ActionType in ("ClickAllowed", "UrlScanInProgress", "UrlErrorPage")
+        or tostring(IsClickedThrough) in ("1", "true", "True")
+    | where UrlChain has_any ("microsoft.com/devicelogin", "login.microsoftonline.com/common/oauth2/deviceauth",
+        "aka.ms/devicelogin", "login.microsoft.com/device")
+    | extend AccountUpn = tolower(AccountUpn)
+    | where isnotempty(AccountUpn)
+    | project ClickTime = Timestamp, AccountUpn, Url, NetworkMessageId, ClickWorkload = Workload;
+let clickUsers = clicks | distinct AccountUpn;
+EntraIdSignInEvents
+| where Timestamp > ago(lookback)
+| where ErrorCode in (0, 50199)
+| extend AccountUpn = tolower(AccountUpn)
+| where AccountUpn in (clickUsers)
+| join kind=inner clicks on AccountUpn
+| where Timestamp between ((ClickTime - 2m) .. (ClickTime + 10m))
+| summarize
+    ErrorCodes = make_set(ErrorCode),
+    MaxRisk = max(RiskLevelDuringSignIn),
+    arg_max(Timestamp, ReportId, AccountObjectId, IPAddress, Country, Application, SessionId)
+    by AccountUpn, ClickTime, Url, NetworkMessageId
+| where set_has_element(ErrorCodes, 0)
+    and (set_has_element(ErrorCodes, 50199) or MaxRisk in (10, 50, 100))
+| project Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, Country, Application,
+    SessionId, ErrorCodes, MaxRisk, ClickTime, Url, NetworkMessageId

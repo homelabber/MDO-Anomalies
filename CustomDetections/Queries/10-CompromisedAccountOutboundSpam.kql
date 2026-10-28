@@ -1,0 +1,28 @@
+// MDO-10 | Compromised account sending outbound spam/phish
+// Hits on an internal sender whose outbound mail is being flagged/blocked by MDO, or
+// whose outbound volume jumps well above its own 14-day hourly baseline.
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let baseline = EmailEvents
+    | where Timestamp between (ago(14d) .. ago(lookback))
+    | where EmailDirection == "Outbound"
+    | summarize Hourly = count() by SenderFromAddress, bin(Timestamp, 1h)
+    | summarize BaselineP95 = percentile(Hourly, 95) by SenderFromAddress;
+EmailEvents
+| where Timestamp > ago(lookback)
+| where EmailDirection == "Outbound"
+| summarize
+    Total = count(),
+    Flagged = countif(isnotempty(ThreatTypes) or DeliveryAction in ("Blocked", "Junked")),
+    Recipients = dcount(RecipientEmailAddress),
+    RecipientDomains = dcount(RecipientDomain),
+    SampleSubjects = make_set(Subject, 10),
+    arg_max(Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, Subject)
+    by SenderFromAddress, Hour = bin(Timestamp, 1h)
+| join kind=leftouter baseline on SenderFromAddress
+| extend BaselineP95 = coalesce(todouble(BaselineP95), 0.0)
+| where Flagged >= 10
+    or (Total >= 100 and Total > 5 * BaselineP95)
+| summarize arg_max(Timestamp, *) by SenderFromAddress
+| project Timestamp, ReportId, NetworkMessageId, SenderFromAddress, RecipientEmailAddress, Subject,
+    Total, Flagged, Recipients, RecipientDomains, BaselineP95, SampleSubjects

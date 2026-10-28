@@ -1,0 +1,173 @@
+[
+  {
+    "id": "mdo-01-email-bombing",
+    "queryFile": "Queries/01-EmailBombing.kql",
+    "displayName": "MDO-01 Email bombing against a recipient",
+    "description": "A recipient received a flood of inbound mail tagged 'Mail bombing' by Defender for Office 365, or an unusual volume from many sender domains. Email bombing is often used to bury security notifications or to set up a fake help-desk call.",
+    "severity": "medium",
+    "frequency": "PT1H",
+    "recommendedActions": "Confirm the flood with the user. Warn them about follow-up 'IT support' calls or Teams chats. Review whether any real alerts (password reset, MFA, purchase confirmations) were hidden in the flood. Consider temporary mail-flow rules and check the user's sign-ins.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "accounts": [ { "aadUserIdColumn": "RecipientObjectId" } ]
+    },
+    "tactics": [ { "tactic": "Impact", "techniques": [ "T1667" ] } ]
+  },
+  {
+    "id": "mdo-02a-email-bomb-external-teams",
+    "queryFile": "Queries/02a-EmailBombThenExternalTeams.kql",
+    "displayName": "MDO-02a Email bombing followed by external Teams contact",
+    "description": "A user who was email-bombed got an external Teams message within 24 hours. This matches the Storm-1811 / Black Basta help-desk impersonation pattern.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Contact the user out-of-band right away. Block the external Teams sender/tenant. Check for Quick Assist or other remote-tool sessions and any new devices, sign-ins, or MFA registrations for the user.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "accounts": [ { "upnColumn": "RecipientEmailAddress" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566.004" ] }, { "tactic": "Impact", "techniques": [ "T1667" ] } ]
+  },
+  {
+    "id": "mdo-02b-email-bomb-remote-tool",
+    "queryFile": "Queries/02b-EmailBombThenRemoteTool.kql",
+    "displayName": "MDO-02b Email bombing followed by remote access tool launch",
+    "description": "Within 24 hours of being email-bombed, a remote-access tool such as Quick Assist, AnyDesk, or ScreenConnect started on the user's device. This is a strong indicator of the help-desk vishing hands-on-keyboard pattern.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Isolate the device. End the remote session. Collect an investigation package. Hunt for follow-on payloads, persistence, and lateral movement. Reset the user's credentials and revoke their sessions.",
+    "entityMappings": {
+      "hosts": [ { "deviceIdColumn": "DeviceId", "nameColumn": "DeviceName" } ],
+      "accounts": [ { "upnColumn": "AccountUpn" } ],
+      "files": [ { "nameColumn": "FileName", "sha256Column": "SHA256" } ]
+    },
+    "tactics": [ { "tactic": "CommandAndControl", "techniques": [ "T1219" ] }, { "tactic": "Impact", "techniques": [ "T1667" ] } ]
+  },
+  {
+    "id": "mdo-03-qr-code-phishing",
+    "queryFile": "Queries/03-QRCodePhishing.kql",
+    "displayName": "MDO-03 QR code phishing delivered",
+    "description": "A message containing a QR code URL was delivered and either carries a phish verdict or uses a credential-lure subject (MFA, password, document, payroll, and similar).",
+    "severity": "medium",
+    "frequency": "PT1H",
+    "recommendedActions": "Review the QR URL in the message. Soft-delete similar messages with Threat Explorer. Check whether recipients signed in from mobile devices or unfamiliar IPs right after delivery.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566.002" ] } ]
+  },
+  {
+    "id": "mdo-04-direct-send-spoofing",
+    "queryFile": "Queries/04-DirectSendSpoofing.kql",
+    "displayName": "MDO-04 Direct Send / internal domain spoofing delivered",
+    "description": "Inbound mail claiming to be from your own domain was delivered after failing SPF/DMARC without coming through a connector, or was tagged 'Spoof intra-org'. This often indicates abuse of Exchange Online Direct Send.",
+    "severity": "medium",
+    "frequency": "PT1H",
+    "recommendedActions": "Review the sending IP. Consider Set-OrganizationConfig -RejectDirectSend $true if you don't rely on Direct Send. Tighten DMARC to p=reject and purge similar messages.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ],
+      "ips": [ { "addressColumn": "SenderIPv4" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1656" ] } ]
+  },
+  {
+    "id": "mdo-05-html-svg-smuggling",
+    "queryFile": "Queries/05-HtmlSvgSmuggling.kql",
+    "displayName": "MDO-05 HTML/SVG smuggling attachment delivered",
+    "description": "A delivered message carried an SVG attachment, or an HTML-type attachment that has a threat verdict or comes from a sender domain first seen in the last 14 days. These attachments are commonly used for HTML smuggling and credential phishing.",
+    "severity": "medium",
+    "frequency": "PT1H",
+    "recommendedActions": "Detonate or review the attachment. Purge similar messages. Check UrlClickEvents and endpoint telemetry for the recipient. Consider blocking .svg/.html in the anti-malware common attachment filter.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ],
+      "files": [ { "nameColumn": "FileName", "sha256Column": "SHA256" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566.001" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1027.006" ] } ]
+  },
+  {
+    "id": "mdo-06-aitm-click-signin",
+    "queryFile": "Queries/06-AiTMClickThenSignIn.kql",
+    "displayName": "MDO-06 AiTM phishing click followed by suspicious sign-in",
+    "description": "A user clicked a phishing URL, and within 1 hour a successful sign-in came from a different IP that is new for the user or rated risky. This is consistent with adversary-in-the-middle token theft.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Revoke the user's sessions and refresh tokens. Reset the password. Review MFA methods and inbox rules. Block the sign-in IP. Hunt for other users who clicked the same URL.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "AccountUpn", "aadUserIdColumn": "AccountObjectId" } ],
+      "ips": [ { "addressColumn": "IPAddress" } ]
+    },
+    "tactics": [ { "tactic": "CredentialAccess", "techniques": [ "T1557", "T1539" ] }, { "tactic": "InitialAccess", "techniques": [ "T1566.002" ] } ]
+  },
+  {
+    "id": "mdo-07-device-code-phishing",
+    "queryFile": "Queries/07-DeviceCodePhishing.kql",
+    "displayName": "MDO-07 Device code phishing sign-in",
+    "description": "A user clicked a device-login URL and completed a sign-in within minutes that was risky or followed the 50199 then success pattern. This matches Storm-2372 device code phishing.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Revoke the user's refresh tokens. Review newly registered devices and Graph/mail access by the issued token. Consider a Conditional Access policy that blocks the device code flow.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "AccountUpn", "aadUserIdColumn": "AccountObjectId" } ],
+      "ips": [ { "addressColumn": "IPAddress" } ]
+    },
+    "tactics": [ { "tactic": "CredentialAccess", "techniques": [ "T1528" ] }, { "tactic": "InitialAccess", "techniques": [ "T1566.002" ] } ]
+  },
+  {
+    "id": "mdo-08-bec-impersonation",
+    "queryFile": "Queries/08-BecImpersonation.kql",
+    "displayName": "MDO-08 BEC / impersonation mail delivered to inbox",
+    "description": "Mail flagged for user, domain, brand, or mailbox-intelligence impersonation reached the inbox. Or an external sender used a display name that exactly matches an internal user.",
+    "severity": "medium",
+    "frequency": "PT1H",
+    "recommendedActions": "Check for payment, gift card, or bank-change requests. Purge the message. Make sure protected users and domains are configured in anti-phishing policy and that impersonation actions are set to quarantine.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1656" ] } ]
+  },
+  {
+    "id": "mdo-10-compromised-outbound-spam",
+    "queryFile": "Queries/10-CompromisedAccountOutboundSpam.kql",
+    "displayName": "MDO-10 Possible compromised account sending outbound spam/phish",
+    "description": "An internal sender's outbound mail is being flagged or blocked by Defender for Office 365, or its hourly volume jumped well above its 14-day baseline.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Check the restricted entities list. Reset credentials and revoke sessions. Review inbox and forwarding rules and OAuth app consents. Notify external recipients if phishing was sent.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "SenderFromAddress" } ],
+      "accounts": [ { "upnColumn": "SenderFromAddress" } ]
+    },
+    "tactics": [ { "tactic": "LateralMovement", "techniques": [ "T1534" ] }, { "tactic": "InitialAccess", "techniques": [ "T1078.004" ] } ]
+  },
+  {
+    "id": "mdo-11-malicious-mail-in-inbox",
+    "queryFile": "Queries/11-MaliciousMailStillInInbox.kql",
+    "displayName": "MDO-11 Malicious mail still in inbox (ZAP missed/failed)",
+    "description": "A message with a phish or malware verdict is still in the user's inbox, or a zero-hour auto purge (ZAP) action against it didn't succeed.",
+    "severity": "high",
+    "frequency": "PT3H",
+    "recommendedActions": "Soft-delete the message with Threat Explorer or Advanced Hunting actions. Find out why ZAP didn't act (for example, allow-list overrides or a disabled ZAP policy). Check whether the user clicked or opened anything.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566" ] } ]
+  },
+  {
+    "id": "mdo-12-inbox-rule-after-phish",
+    "queryFile": "Queries/12-InboxRuleAfterPhish.kql",
+    "displayName": "MDO-12 Suspicious inbox/forwarding rule after phishing exposure",
+    "description": "Within 3 days of receiving phish or clicking a phishing URL, the user created an inbox rule or mailbox setting that deletes, hides, moves, or forwards mail.",
+    "severity": "high",
+    "frequency": "PT3H",
+    "recommendedActions": "Remove the rule or forwarding. Revoke sessions and reset credentials. Review the sign-in from the rule-creation IP. Search for BEC follow-up mail sent from the account.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "AccountUpn", "aadUserIdColumn": "AccountObjectId" } ],
+      "ips": [ { "addressColumn": "IPAddress" } ]
+    },
+    "tactics": [ { "tactic": "Collection", "techniques": [ "T1114.003" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1564.008" ] } ]
+  }
+]

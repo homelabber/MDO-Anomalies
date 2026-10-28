@@ -1,0 +1,29 @@
+// MDO-02a | Email bombing followed by external Teams contact ("help desk" vishing)
+// Storm-1811 / Black Basta-style pattern: flood the mailbox, then contact the
+// victim from an external Teams tenant pretending to be IT support.
+// Frequency: every 1 hour (4 hour lookback). Requires Teams protection (MessageEvents).
+let lookback = 4h;
+let bombWindow = 24h;
+let bombed = EmailEvents
+    | where Timestamp > ago(bombWindow + lookback)
+    | where EmailDirection == "Inbound"
+    | summarize
+        BombCount = count(),
+        Tagged = countif(DetectionMethods has "Mail bombing"),
+        Domains = dcount(SenderFromDomain),
+        BombStart = min(Timestamp)
+        by Recipient = tolower(RecipientEmailAddress)
+    | where Tagged >= 10 or (BombCount >= 100 and Domains >= 20);
+MessageEvents
+| where Timestamp > ago(lookback)
+| where IsExternalThread == true
+| mv-expand RecipientDetail = RecipientDetails
+| extend Recipient = tolower(tostring(RecipientDetail.RecipientSmtpAddress))
+| where isnotempty(Recipient)
+| join kind=inner bombed on Recipient
+| where Timestamp between (BombStart .. (BombStart + bombWindow))
+| summarize arg_max(Timestamp, ReportId, SenderEmailAddress, SenderDisplayName, ThreatTypes),
+    BombStart = min(BombStart), BombCount = max(BombCount), Tagged = max(Tagged)
+    by Recipient
+| project Timestamp, ReportId, RecipientEmailAddress = Recipient, SenderEmailAddress,
+    SenderDisplayName, ThreatTypes, BombStart, BombCount, MailBombingTagged = Tagged

@@ -1,0 +1,23 @@
+// MDO-03 | QR code phishing (quishing) delivered to a mailbox
+// MDO pulls URLs out of QR codes in images and attachments (UrlLocation == "QRCode").
+// Hits on delivered QR messages that have a phish signal or a credential-lure subject.
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let lureKeywords = dynamic(["MFA", "2FA", "authenticate", "authentication", "verify", "password",
+    "expire", "expires", "document", "sign", "payroll", "salary", "benefits", "voicemail", "shared",
+    "invoice", "HR"]);
+let qrMessages = EmailUrlInfo
+    | where Timestamp > ago(lookback + 1h)
+    | where UrlLocation == "QRCode"
+    | summarize QrUrls = make_set(Url, 5), QrDomains = make_set(UrlDomain, 5) by NetworkMessageId;
+EmailEvents
+| where Timestamp > ago(lookback)
+| where EmailDirection == "Inbound"
+| where DeliveryAction == "Delivered"
+| join kind=inner qrMessages on NetworkMessageId
+| where ThreatTypes has "Phish"
+    or DetectionMethods has "Phish"
+    or Subject has_any (lureKeywords)
+| project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+    SenderFromAddress, SenderFromDomain, Subject, DeliveryLocation, ThreatTypes,
+    DetectionMethods, QrUrls, QrDomains

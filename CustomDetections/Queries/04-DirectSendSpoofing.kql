@@ -1,0 +1,20 @@
+// MDO-04 | Direct Send / internal-domain spoofing reaching users
+// Attackers use Exchange Online Direct Send (smart host, no auth) to send mail that
+// appears to come from your own domain. Hits on inbound mail "from" the recipient's
+// own domain that failed SPF/DMARC and didn't arrive through a connector, or that MDO
+// tagged "Spoof intra-org".
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+EmailEvents
+| where Timestamp > ago(lookback)
+| where EmailDirection == "Inbound"
+| where DeliveryAction in ("Delivered", "Junked")
+| where SenderFromDomain =~ RecipientDomain
+| extend Auth = parse_json(AuthenticationDetails)
+| extend SPF = tostring(Auth.SPF), DKIM = tostring(Auth.DKIM),
+    DMARC = tostring(Auth.DMARC), CompAuth = tostring(Auth.CompAuth)
+| where DetectionMethods has "Spoof intra-org"
+    or (isempty(Connectors) and SPF !~ "pass" and DMARC !in~ ("pass", "bestguesspass"))
+| project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+    SenderFromAddress, SenderMailFromDomain, SenderIPv4, Subject, DeliveryAction,
+    DeliveryLocation, SPF, DKIM, DMARC, CompAuth, Connectors, ThreatTypes, DetectionMethods

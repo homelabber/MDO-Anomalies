@@ -1,0 +1,19 @@
+// MDO-11 | Malicious mail still in the inbox (ZAP missed or failed)
+// Hits on phish/malware messages whose latest location is still the inbox, or where a
+// zero-hour auto purge (ZAP) action didn't succeed.
+// Frequency: every 3 hours (12 hour lookback)
+let lookback = 12h;
+let zapFailures = EmailPostDeliveryEvents
+    | where Timestamp > ago(lookback)
+    | where ActionType has "ZAP" and ActionResult !~ "Success"
+    | summarize ZapActions = make_set(ActionType), ZapResults = make_set(ActionResult)
+        by NetworkMessageId, RecipientEmailAddress;
+EmailEvents
+| where Timestamp > ago(lookback)
+| where EmailDirection == "Inbound"
+| where ThreatTypes has_any ("Phish", "Malware")
+| join kind=leftouter zapFailures on NetworkMessageId, RecipientEmailAddress
+| where LatestDeliveryLocation == "Inbox/folder" or array_length(ZapResults) > 0
+| project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+    SenderFromAddress, Subject, ThreatTypes, DetectionMethods, DeliveryLocation,
+    LatestDeliveryLocation, LatestDeliveryAction, ZapActions, ZapResults

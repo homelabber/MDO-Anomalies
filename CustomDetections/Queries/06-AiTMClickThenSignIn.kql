@@ -1,0 +1,38 @@
+// MDO-06 | Adversary-in-the-middle (AiTM): phishing click followed by suspicious sign-in
+// The user clicks a phishing URL (allowed, or clicked through a warning), and within
+// 1 hour a successful sign-in for that user comes from a different IP that is either
+// unseen in the last 14 days or flagged risky by Entra ID Protection.
+// Frequency: every 1 hour (4 hour lookback). Requires Entra ID P2 (EntraIdSignInEvents).
+let lookback = 4h;
+let clicks = UrlClickEvents
+    | where Timestamp > ago(lookback + 1h)
+    | where (ThreatTypes has "Phish" and ActionType in ("ClickAllowed", "UrlScanInProgress", "UrlErrorPage"))
+        or tostring(IsClickedThrough) in ("1", "true", "True")
+    | extend AccountUpn = tolower(AccountUpn)
+    | where isnotempty(AccountUpn)
+    | project ClickTime = Timestamp, AccountUpn, ClickIP = IPAddress, Url, NetworkMessageId,
+        ClickWorkload = Workload, ClickThreatTypes = ThreatTypes;
+let clickUsers = clicks | distinct AccountUpn;
+let knownIps = EntraIdSignInEvents
+    | where Timestamp between (ago(14d) .. ago(lookback + 1h))
+    | where ErrorCode == 0
+    | extend AccountUpn = tolower(AccountUpn)
+    | where AccountUpn in (clickUsers)
+    | distinct AccountUpn, IPAddress
+    | extend KnownIp = true;
+EntraIdSignInEvents
+| where Timestamp > ago(lookback)
+| where ErrorCode == 0
+| extend AccountUpn = tolower(AccountUpn)
+| where AccountUpn in (clickUsers)
+| join kind=inner clicks on AccountUpn
+| where Timestamp between (ClickTime .. (ClickTime + 1h))
+| where IPAddress != ClickIP
+| join kind=leftouter knownIps on AccountUpn, IPAddress
+| where isnull(KnownIp) or RiskLevelDuringSignIn in (10, 50, 100)
+| summarize arg_max(Timestamp, ReportId, AccountObjectId, IPAddress, Country, Application,
+    RiskLevelDuringSignIn, UserAgent, SessionId), ClickTime = min(ClickTime),
+    Urls = make_set(Url, 5), NetworkMessageId = take_any(NetworkMessageId)
+    by AccountUpn
+| project Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, Country, Application,
+    RiskLevelDuringSignIn, UserAgent, SessionId, ClickTime, Urls, NetworkMessageId

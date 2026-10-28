@@ -1,0 +1,36 @@
+// MDO-12 | Suspicious inbox or forwarding rule created after phishing exposure
+// The user got delivered phish or clicked a phishing URL in the last 3 days, and then
+// creates an inbox rule that deletes, hides, or forwards mail, or sets mailbox forwarding.
+// Typical post-AiTM/BEC persistence.
+// Frequency: every 3 hours (12 hour lookback)
+let lookback = 12h;
+let exposureWindow = 3d;
+let phishExposure = union
+    (EmailEvents
+        | where Timestamp > ago(exposureWindow + lookback)
+        | where EmailDirection == "Inbound" and DeliveryAction == "Delivered"
+        | where ThreatTypes has "Phish"
+        | project ExposureTime = Timestamp, AccountUpn = tolower(RecipientEmailAddress),
+            ExposureType = "Phish delivered", NetworkMessageId, Detail = Subject),
+    (UrlClickEvents
+        | where Timestamp > ago(exposureWindow + lookback)
+        | where ThreatTypes has "Phish"
+        | project ExposureTime = Timestamp, AccountUpn = tolower(AccountUpn),
+            ExposureType = "Phish URL click", NetworkMessageId, Detail = Url)
+    | summarize ExposureTime = min(ExposureTime), ExposureTypes = make_set(ExposureType),
+        NetworkMessageId = take_any(NetworkMessageId), ExposureDetail = take_any(Detail) by AccountUpn;
+CloudAppEvents
+| where Timestamp > ago(lookback)
+| where Application == "Microsoft Exchange Online"
+| where ActionType in ("New-InboxRule", "Set-InboxRule", "UpdateInboxRules", "Set-Mailbox")
+| extend Params = tostring(RawEventData.Parameters)
+| where ActionType != "Set-Mailbox"
+    or Params has_any ("ForwardingSmtpAddress", "ForwardingAddress", "DeliverToMailboxAndForward")
+| where Params has_any ("DeleteMessage", "MoveToFolder", "MarkAsRead", "ForwardTo", "RedirectTo",
+    "ForwardAsAttachmentTo", "ForwardingSmtpAddress", "ForwardingAddress", "RSS", "Archive",
+    "Conversation History")
+| extend AccountUpn = tolower(tostring(RawEventData.UserId))
+| join kind=inner phishExposure on AccountUpn
+| where Timestamp between (ExposureTime .. (ExposureTime + exposureWindow))
+| project Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, ActionType, Params,
+    ExposureTime, ExposureTypes, ExposureDetail, NetworkMessageId

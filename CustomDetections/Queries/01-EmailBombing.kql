@@ -1,0 +1,27 @@
+// MDO-01 | Email bombing (mail bombing) against a recipient
+// Hits when MDO tags messages as "Mail bombing", or when a recipient gets an
+// unusual flood of inbound mail from many different sender domains.
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let taggedThreshold = 10;     // messages MDO tagged as "Mail bombing"
+let volumeThreshold = 100;    // total inbound messages to one recipient
+let domainThreshold = 20;     // distinct sender domains in the flood
+EmailEvents
+| where Timestamp > ago(lookback)
+| where EmailDirection == "Inbound"
+| summarize
+    MessageCount = count(),
+    DistinctSenderDomains = dcount(SenderFromDomain),
+    MailBombingTagged = countif(DetectionMethods has "Mail bombing"),
+    DeliveredToInbox = countif(DeliveryLocation == "Inbox/folder"),
+    FirstSeen = min(Timestamp),
+    SampleSubjects = make_set(Subject, 10),
+    SampleSenderDomains = make_set(SenderFromDomain, 20),
+    RecipientObjectId = take_any(RecipientObjectId),
+    arg_max(Timestamp, ReportId, NetworkMessageId, SenderFromAddress, Subject)
+    by RecipientEmailAddress
+| where MailBombingTagged >= taggedThreshold
+    or (MessageCount >= volumeThreshold and DistinctSenderDomains >= domainThreshold)
+| project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+    SenderFromAddress, Subject, MessageCount, MailBombingTagged, DistinctSenderDomains,
+    DeliveredToInbox, FirstSeen, SampleSubjects, SampleSenderDomains

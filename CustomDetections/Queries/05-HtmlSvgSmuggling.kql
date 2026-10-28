@@ -1,0 +1,30 @@
+// MDO-05 | HTML / SVG smuggling attachment delivered
+// SVG and HTML attachments are widely used to smuggle phishing pages or payloads past
+// URL scanning. Any delivered external SVG hits. HTML-type attachments hit when they
+// carry a threat verdict or the sender domain is new in the last 14 days.
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let knownSenderDomains = EmailEvents
+    | where Timestamp between (ago(14d) .. ago(lookback))
+    | where EmailDirection == "Inbound"
+    | distinct SenderFromDomain;
+let delivered = EmailEvents
+    | where Timestamp > ago(lookback)
+    | where EmailDirection == "Inbound"
+    | where DeliveryAction == "Delivered"
+    | project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+        SenderFromAddress, SenderFromDomain, Subject, DeliveryLocation, EmailThreatTypes = ThreatTypes;
+EmailAttachmentInfo
+| where Timestamp > ago(lookback + 1h)
+| extend Ext = tolower(extract(@"\.([A-Za-z0-9]+)$", 1, FileName))
+| where Ext in ("svg", "svgz", "htm", "html", "shtml", "xhtml", "mht", "mhtml")
+    or FileType in~ ("svg", "html")
+| project NetworkMessageId, RecipientEmailAddress, FileName, FileType, SHA256, Ext,
+    AttachmentThreatTypes = ThreatTypes
+| join kind=inner delivered on NetworkMessageId, RecipientEmailAddress
+| extend NewSenderDomain = SenderFromDomain !in (knownSenderDomains)
+| where Ext in ("svg", "svgz") or FileType =~ "svg"
+    or isnotempty(AttachmentThreatTypes) or isnotempty(EmailThreatTypes) or NewSenderDomain
+| project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+    SenderFromAddress, SenderFromDomain, Subject, DeliveryLocation, FileName, FileType,
+    SHA256, AttachmentThreatTypes, EmailThreatTypes, NewSenderDomain

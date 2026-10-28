@@ -1,0 +1,31 @@
+// MDO-02b | Email bombing followed by remote-access tool launch on the victim's device
+// After the email flood and fake help-desk call, the actor asks the victim to start
+// Quick Assist or another RMM tool. Requires Defender for Endpoint.
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let bombWindow = 24h;
+let remoteTools = dynamic([
+    "quickassist.exe", "anydesk.exe", "teamviewer.exe", "teamviewer_service.exe",
+    "screenconnect.clientservice.exe", "screenconnect.windowsclient.exe",
+    "rustdesk.exe", "splashtop.exe", "srservice.exe", "zaservice.exe",
+    "rutserv.exe", "supremo.exe", "client32.exe", "atera_agent.exe",
+    "level.exe", "remoteutilities.exe", "dwagent.exe"]);
+let bombed = EmailEvents
+    | where Timestamp > ago(bombWindow + lookback)
+    | where EmailDirection == "Inbound"
+    | summarize
+        BombCount = count(),
+        Tagged = countif(DetectionMethods has "Mail bombing"),
+        Domains = dcount(SenderFromDomain),
+        BombStart = min(Timestamp)
+        by Recipient = tolower(RecipientEmailAddress)
+    | where Tagged >= 10 or (BombCount >= 100 and Domains >= 20);
+DeviceProcessEvents
+| where Timestamp > ago(lookback)
+| where FileName in~ (remoteTools)
+| extend Recipient = tolower(coalesce(AccountUpn, InitiatingProcessAccountUpn))
+| where isnotempty(Recipient)
+| join kind=inner bombed on Recipient
+| where Timestamp between (BombStart .. (BombStart + bombWindow))
+| project Timestamp, ReportId, DeviceId, DeviceName, AccountUpn = Recipient, AccountName,
+    FileName, ProcessCommandLine, SHA256, BombStart, BombCount, MailBombingTagged = Tagged
