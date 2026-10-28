@@ -1194,7 +1194,7 @@
           {
             "type": 1,
             "content": {
-              "json": "### Mail flagged by MDO's LLM content analysis\nDefender for Office 365 runs purpose-built large language models that read the message's content and **intent** (for example urgency, payment-change requests, credential requests, or callback lures). Matches show up as the **LLM content analysis** detection technology.\n\n**How to read this tab:** this is mail that *Microsoft's* AI flagged. It does **not** prove the attacker used AI to write it, and nothing in the data shows that. **LLM-only** detections, where no reputation, detonation, impersonation, or fingerprint signal also fired, are the best available stand-in for novel, well-written lures (often AI-assisted) that traditional filters would have missed. Workbook only."
+              "json": "### Mail flagged by MDO's LLM content analysis\nDefender for Office 365 runs purpose-built large language models that read the message's content and **intent** (for example urgency, payment-change requests, credential requests, or callback lures). Matches show up as the **LLM content analysis** detection technology.\n\n**How to read this tab:** this is mail that *Microsoft's* AI flagged. It does **not** prove the attacker used AI to write it, and nothing in the data shows that. **LLM-only** detections, where no reputation, detonation, impersonation, or fingerprint signal also fired, are the best available stand-in for novel, well-written lures (often AI-assisted) that traditional filters would have missed.\n\n**Custom detection:** `MDO-14` (LLM-flagged mail still in the inbox)"
             },
             "name": "text-52"
           },

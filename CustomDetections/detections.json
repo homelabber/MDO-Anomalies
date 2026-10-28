@@ -169,5 +169,20 @@
       "ips": [ { "addressColumn": "IPAddress" } ]
     },
     "tactics": [ { "tactic": "Collection", "techniques": [ "T1114.003" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1564.008" ] } ]
+  },
+  {
+    "id": "mdo-14-llm-flagged-in-inbox",
+    "queryFile": "Queries/14-LlmFlaggedMailInInbox.kql",
+    "displayName": "MDO-14 LLM-flagged mail still in the inbox",
+    "description": "Defender for Office 365's LLM content analysis flagged an inbound message for malicious intent, but the message is still in the recipient's inbox. LlmOnly = true means no other detection technology fired, which often points to a novel or AI-assisted lure.",
+    "severity": "medium",
+    "frequency": "PT3H",
+    "recommendedActions": "Review the message in Threat Explorer and soft-delete it and similar messages if malicious. If ClickCount > 0, check the user's sign-ins and revoke sessions. For URL-less lures, warn the user about callback or payment-change requests. Submit false positives to Microsoft.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "accounts": [ { "aadUserIdColumn": "RecipientObjectId" } ],
+      "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566" ] } ]
   }
 ]

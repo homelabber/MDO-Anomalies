@@ -21,9 +21,9 @@ Detections are built as **custom detections** rather than Sentinel scheduled ana
 | 11 | Malicious mail still in inbox (ZAP missed or failed) | Any | ✅ | `MDO-11` (High) | T1566 |
 | 12 | Inbox or forwarding rule created after phish exposure | BEC / AiTM follow-on | ✅ | `MDO-12` (High) | T1114.003, T1564.008 |
 | 13 | Look-alike and newly seen sender domains | BEC, typosquatting | ✅ | Workbook only | T1583.001 |
-| 14 | Mail flagged by MDO's **LLM content analysis** (intent-based detection) | Novel, well-written lures (often AI-assisted) | ✅ | Workbook only | T1566 |
+| 14 | Mail flagged by MDO's **LLM content analysis** (intent-based detection) | Novel, well-written lures (often AI-assisted) | ✅ | `MDO-14` (Medium) | T1566 |
 
-Anomalies 09 and 13 are workbook-only. Without message-body content or domain-age data, they produce too many false positives to alert on. Tab 14 is a visibility view, not an alert. It shows mail that Microsoft's large language models flagged, and highlights **LLM-only** catches, where no reputation, detonation, or impersonation signal also fired. Those are the best available stand-in for novel or AI-assisted lures. It does *not* prove that an attacker used AI; nothing in the email data can show that.
+Anomalies 09 and 13 are workbook-only. Without message-body content or domain-age data, they produce too many false positives to alert on. Tab 14 shows mail that Microsoft's large language models flagged, and highlights **LLM-only** catches, where no reputation, detonation, or impersonation signal also fired. Those are the best available stand-in for novel or AI-assisted lures. It does *not* prove that an attacker used AI; nothing in the email data can show that. Its detection, `MDO-14`, alerts only when LLM-flagged mail is still in the inbox, and reports whether it was LLM-only and whether the recipient clicked. When the verdict is Phish or Malware it can fire together with `MDO-11`; Defender groups both alerts into one incident.
 
 ## Repository layout
 
@@ -110,6 +110,7 @@ If you prefer to do it by hand, open **Defender portal > Hunting > Advanced hunt
 | mdo-10-compromised-outbound-spam | High | 1h | Mailbox, account |
 | mdo-11-malicious-mail-in-inbox | High | 3h | Mailbox, email message |
 | mdo-12-inbox-rule-after-phish | High | 3h | Account, IP |
+| mdo-14-llm-flagged-in-inbox | Medium | 3h | Mailbox, account, email message |
 
 Each query's lookback matches the documented custom-detection window for its frequency: 1h runs look back 4h and 3h runs look back 12h. This allows for ingestion delay.
 

@@ -1,0 +1,32 @@
+// MDO-14 | LLM-flagged mail still in the inbox
+// Hits on inbound mail that MDO's "LLM content analysis" flagged but that is still in the
+// recipient's inbox (delivered, or not removed by ZAP). LlmOnly = true means no other detection
+// technology fired, which is the best available stand-in for novel or AI-assisted lures.
+// Overlaps with MDO-11 when the verdict is Phish/Malware; Defender correlates both alerts on the
+// same message into one incident.
+// Frequency: every 3 hours (12 hour lookback)
+let lookback = 12h;
+let clicks = UrlClickEvents
+    | where Timestamp > ago(lookback)
+    | where ActionType == "ClickAllowed" or IsClickedThrough
+    | summarize ClickCount = count(), ClickedUrls = make_set(Url, 10) by NetworkMessageId;
+EmailEvents
+| where Timestamp > ago(lookback)
+| where EmailDirection == "Inbound"
+| where DetectionMethods has "LLM content analysis"
+| where LatestDeliveryLocation == "Inbox/folder"
+| extend DM = parse_json(DetectionMethods)
+| mv-expand Threat = bag_keys(DM) to typeof(string)
+| mv-expand Tech = DM[Threat] to typeof(string)
+| summarize arg_max(Timestamp, ReportId, RecipientObjectId, SenderFromAddress, SenderFromDomain, SenderIPv4,
+        Subject, ThreatTypes, DetectionMethods, DeliveryAction, DeliveryLocation, LatestDeliveryLocation,
+        LatestDeliveryAction, UrlCount, AttachmentCount),
+    OtherTechs = make_set_if(Tech, Tech != "LLM content analysis")
+    by NetworkMessageId, RecipientEmailAddress
+| extend LlmOnly = array_length(OtherTechs) == 0
+| join kind=leftouter clicks on NetworkMessageId
+| extend ClickCount = coalesce(ClickCount, 0)
+| project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+    SenderFromAddress, SenderFromDomain, SenderIPv4, Subject, ThreatTypes, DetectionMethods,
+    LlmOnly, OtherTechs, UrlCount, AttachmentCount, DeliveryAction, DeliveryLocation,
+    LatestDeliveryLocation, LatestDeliveryAction, ClickCount, ClickedUrls
