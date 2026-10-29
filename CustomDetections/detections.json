@@ -184,5 +184,76 @@
       "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ]
     },
     "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566" ] } ]
+  },
+  {
+    "id": "mdo-s1-risky-signin-then-inbox-rule",
+    "queryFile": "Queries/15-S1-RiskySignInThenInboxRule.kql",
+    "displayName": "MDO-S1 Risky sign-in followed by suspicious inbox/forwarding rule",
+    "description": "Within 24 hours of a successful medium/high-risk sign-in, the same user created an inbox rule or mailbox forwarding that deletes, hides, moves or forwards mail. Score rises for forwarding, finance keywords, an obfuscated rule name, or the same IP as the risky sign-in.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Treat as a compromised account: revoke sessions, reset the password, confirm the user's MFA methods. Remove the rule or forwarding. Look for BEC mail sent from the account and for other users signing in from the same IP.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "AccountUpn", "aadUserIdColumn": "AccountObjectId" } ],
+      "ips": [ { "addressColumn": "IPAddress" } ]
+    },
+    "tactics": [ { "tactic": "DefenseEvasion", "techniques": [ "T1564.008" ] }, { "tactic": "Collection", "techniques": [ "T1114.003" ] } ]
+  },
+  {
+    "id": "mdo-s2-risky-signin-then-mfa-registration",
+    "queryFile": "Queries/15-S2-RiskySignInThenMfaRegistration.kql",
+    "displayName": "MDO-S2 Risky sign-in followed by new MFA/security info registration",
+    "description": "Within 24 hours of a successful medium/high-risk sign-in, the same user registered or changed security info (authenticator app, phone or FIDO key). Attackers add their own MFA method to keep access after a password reset.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Confirm with the user out of band. If not theirs, delete the new method, revoke sessions, reset the password and require re-registration. Check for inbox rules, OAuth consents and other sign-ins from the same IP.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "AccountUpn", "aadUserIdColumn": "AccountObjectId" } ],
+      "ips": [ { "addressColumn": "IPAddress" } ]
+    },
+    "tactics": [ { "tactic": "Persistence", "techniques": [ "T1556.006", "T1098.005" ] } ]
+  },
+  {
+    "id": "mdo-s3-risky-signin-then-oauth-consent",
+    "queryFile": "Queries/15-S3-RiskySignInThenOAuthConsent.kql",
+    "displayName": "MDO-S3 Risky sign-in followed by OAuth application consent",
+    "description": "Within 24 hours of a successful medium/high-risk sign-in, the same user consented to an OAuth application. Consent phishing or post-compromise persistence; an app with mail permissions keeps access after a password reset.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Review the app and its permissions in Entra ID. If unexpected, revoke the grant, disable the service principal, and revoke the user's sessions. Restrict user consent to verified publishers.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "AccountUpn", "aadUserIdColumn": "AccountObjectId" } ],
+      "ips": [ { "addressColumn": "IPAddress" } ]
+    },
+    "tactics": [ { "tactic": "CredentialAccess", "techniques": [ "T1528" ] }, { "tactic": "Persistence", "techniques": [ "T1098.003" ] } ]
+  },
+  {
+    "id": "mdo-s6-inbox-rule-then-finance-mail",
+    "queryFile": "Queries/15-S6-InboxRuleThenFinanceMailOut.kql",
+    "displayName": "MDO-S6 Suspicious inbox rule followed by finance mail sent externally",
+    "description": "Within 72 hours of creating a suspicious inbox rule (forwarding, finance keywords, obfuscated name, or moving mail to RSS/Conversation History), the same mailbox sent outbound mail with payment, invoice or banking language. Typical BEC thread hijack.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Contact the recipients to stop any payment or bank-detail change. Remove the rule, revoke sessions and reset the password. Review the sent items and the rule's sign-in IP.",
+    "entityMappings": {
+      "accounts": [ { "aadUserIdColumn": "AccountObjectId" } ],
+      "mailboxes": [ { "primaryAddressColumn": "SenderFromAddress" } ],
+      "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ]
+    },
+    "tactics": [ { "tactic": "LateralMovement", "techniques": [ "T1534" ] }, { "tactic": "Collection", "techniques": [ "T1114.003" ] } ]
+  },
+  {
+    "id": "mdo-s8-aitm-full-chain",
+    "queryFile": "Queries/15-S8-PhishClickRiskySignInInboxRule.kql",
+    "displayName": "MDO-S8 AiTM chain: phish click, risky sign-in, inbox rule",
+    "description": "The user clicked a phishing URL, a successful medium/high-risk sign-in followed within 2 hours, and an inbox rule or mailbox forwarding that hides or forwards mail was created within 24 hours of that sign-in.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Treat as a confirmed AiTM compromise: revoke sessions and tokens, reset the password, review MFA methods, remove the rule, block the phishing URL and sign-in IP, and soft-delete the phishing message from all mailboxes.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "AccountUpn", "aadUserIdColumn": "AccountObjectId" } ],
+      "ips": [ { "addressColumn": "IPAddress" } ]
+    },
+    "tactics": [ { "tactic": "CredentialAccess", "techniques": [ "T1557" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1564.008" ] } ]
   }
 ]

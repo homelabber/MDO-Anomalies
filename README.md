@@ -1,6 +1,6 @@
 # MDO Mail Anomalies
 
-This repo has a **Microsoft Sentinel workbook** and a set of **Microsoft Defender XDR custom detections** for the mail-borne attack patterns that Microsoft Threat Intelligence tracks and Microsoft Defender for Office 365 (MDO) surfaces. It covers mail bombing and twelve other patterns, plus a view of mail flagged by MDO's LLM-based content analysis.
+This repo has a **Microsoft Sentinel workbook** and a set of **Microsoft Defender XDR custom detections** for the mail-borne attack patterns that Microsoft Threat Intelligence tracks and Microsoft Defender for Office 365 (MDO) surfaces. It covers mail bombing and twelve other patterns, a view of mail flagged by MDO's LLM-based content analysis, and multi-step **attack sequences** (for example a risky sign-in followed by a new inbox rule).
 
 Detections are built as **custom detections** rather than Sentinel scheduled analytics rules, in line with Microsoft's move to unified detections in the Defender portal. They can run every hour, use the Advanced Hunting tables directly (including columns not streamed to Sentinel, such as `LatestDeliveryLocation`), and support response actions.
 
@@ -22,8 +22,27 @@ Detections are built as **custom detections** rather than Sentinel scheduled ana
 | 12 | Inbox or forwarding rule created after phish exposure | BEC / AiTM follow-on | ✅ | `MDO-12` (High) | T1114.003, T1564.008 |
 | 13 | Look-alike and newly seen sender domains | BEC, typosquatting | ✅ | Workbook only | T1583.001 |
 | 14 | Mail flagged by MDO's **LLM content analysis** (intent-based detection) | Novel, well-written lures (often AI-assisted) | ✅ | `MDO-14` (Medium) | T1566 |
+| 15 | **Attack sequences** (S1-S9): risky sign-in, then inbox rule / MFA registration / OAuth consent / mail burst / mass download; rule, then finance mail out; attachment, then execution; phish click, then risky sign-in, then rule; help-desk reset, then new country | Storm-1167 (AiTM/BEC), Octo Tempest, Storm-0501, consent phishing | ✅ | `MDO-S1`, `MDO-S2`, `MDO-S3`, `MDO-S6`, `MDO-S8` (High) | T1564.008, T1114.003, T1556.006, T1528, T1534, T1557 |
 
 Anomalies 09 and 13 are workbook-only. Without message-body content or domain-age data, they produce too many false positives to alert on. Tab 14 shows mail that Microsoft's large language models flagged, and highlights **LLM-only** catches, where no reputation, detonation, or impersonation signal also fired. Those are the best available stand-in for novel or AI-assisted lures. It does *not* prove that an attacker used AI; nothing in the email data can show that. Its detection, `MDO-14`, alerts only when LLM-flagged mail is still in the inbox, and reports whether it was LLM-only and whether the recipient clicked. When the verdict is Phish or Malware it can fire together with `MDO-11`; Defender groups both alerts into one incident.
+
+### Attack sequences (tab 15)
+
+Single events such as a new inbox rule are noisy. The same event shortly after a risky sign-in, for the same user, is not. Tab 15 joins steps per user:
+
+| Seq | Chain | Window | Detection |
+|---|---|---|---|
+| S1 | Risky sign-in (Entra ID Protection, medium/high) -> inbox or forwarding rule that hides or forwards mail. Scored for forwarding, finance keywords, an obfuscated rule name (`.`, `..`) and same IP as the risky sign-in | 24h | `MDO-S1` |
+| S2 | Risky sign-in -> new MFA / security info registered (workbook also shows device registration) | 24h | `MDO-S2` |
+| S3 | Risky sign-in -> OAuth app consent | 24h | `MDO-S3` |
+| S4 | Risky sign-in -> outbound/internal mail burst (internal phishing) | 24h | Workbook only |
+| S5 | Risky sign-in -> mass SharePoint/OneDrive download or sharing | 24h | Workbook only |
+| S6 | Suspicious inbox rule -> outbound mail with finance/payment language (BEC thread hijack) | 72h | `MDO-S6` |
+| S7 | Risky attachment delivered -> file written to a device -> script host / LOLBin launched | 24h + 1h | Workbook only |
+| S8 | Phish click -> risky sign-in (2h) -> inbox rule (24h): the full AiTM chain | 26h | `MDO-S8` |
+| S9 | Help-desk style password reset or MFA change -> sign-in from a country not seen in the prior 30 days | 24h | Workbook only |
+
+A "Users hit by more than one sequence" table ranks users who show several chains. In the workbook, earlier steps look back 3 days before the selected time range. `MDO-S1` overlaps `MDO-12` and `MDO-S8` overlaps `MDO-06`/`MDO-12`; Defender correlates them into the same incident.
 
 ## Repository layout
 
@@ -43,12 +62,12 @@ CustomDetections/
 |---|---|
 | Microsoft Defender for Office 365 Plan 2 | Everything (Email* and UrlClickEvents tables) |
 | Microsoft Sentinel **Microsoft Defender XDR** connector streaming `EmailEvents`, `EmailUrlInfo`, `EmailAttachmentInfo`, `EmailPostDeliveryEvents`, `UrlClickEvents`, `CloudAppEvents` | Workbook |
-| `DeviceProcessEvents` (Defender for Endpoint) | Workbook tab 02, `MDO-02b` |
+| `DeviceProcessEvents`, `DeviceFileEvents` (Defender for Endpoint) | Workbook tabs 02 and 15 (S7), `MDO-02b` |
 | `MessageEvents` (Teams, optional) | Workbook tab 02, `MDO-02a` |
-| Microsoft Entra ID connector (`SigninLogs`) | Workbook tabs 06 and 07 |
-| Entra ID P2 (`EntraIdSignInEvents` in Advanced Hunting) | `MDO-06`, `MDO-07` |
+| Microsoft Entra ID connector (`SigninLogs`, `AuditLogs`, `AADUserRiskEvents`) | Workbook tabs 06, 07 and 15 |
+| Entra ID P2 (`EntraIdSignInEvents` in Advanced Hunting, ID Protection risk levels) | `MDO-06`, `MDO-07`, `MDO-S1`, `MDO-S2`, `MDO-S3`, `MDO-S8`, tab 15 |
 | UEBA (`IdentityInfo`) | Workbook tab 08 display-name match (optional) |
-| Defender for Cloud Apps Microsoft 365 connector (`CloudAppEvents`) | Tab 12, `MDO-12` |
+| Defender for Cloud Apps Microsoft 365 connector (`CloudAppEvents`, including Entra ID audit events) | Tabs 12 and 15, `MDO-12`, `MDO-S1`-`MDO-S8` |
 
 Workbook queries that depend on optional tables use `union isfuzzy=true`, so a missing table shows "no data" instead of an error.
 
@@ -111,8 +130,13 @@ If you prefer to do it by hand, open **Defender portal > Hunting > Advanced hunt
 | mdo-11-malicious-mail-in-inbox | High | 3h | Mailbox, email message |
 | mdo-12-inbox-rule-after-phish | High | 3h | Account, IP |
 | mdo-14-llm-flagged-in-inbox | Medium | 3h | Mailbox, account, email message |
+| mdo-s1-risky-signin-then-inbox-rule | High | 1h | Account, IP |
+| mdo-s2-risky-signin-then-mfa-registration | High | 1h | Account, IP |
+| mdo-s3-risky-signin-then-oauth-consent | High | 1h | Account, IP |
+| mdo-s6-inbox-rule-then-finance-mail | High | 1h | Account, mailbox, email message |
+| mdo-s8-aitm-full-chain | High | 1h | Account, IP |
 
-Each query's lookback matches the documented custom-detection window for its frequency: 1h runs look back 4h and 3h runs look back 12h. This allows for ingestion delay.
+Each query's lookback matches the documented custom-detection window for its frequency: 1h runs look back 4h and 3h runs look back 12h. This allows for ingestion delay. The sequence detections (`MDO-S*`) use the same 4h lookback for the final step and extend it by the chain window for earlier steps.
 
 ## Tuning
 
@@ -120,6 +144,7 @@ Each query's lookback matches the documented custom-detection window for its fre
 - **Remote tools (02b):** remove any RMM tool your help desk uses legitimately, or exclude your managed instances.
 - **Direct Send (04):** if you have scanners or line-of-business apps that use Direct Send, exclude their IPs. Better still, move them to an authenticated connector and set `Set-OrganizationConfig -RejectDirectSend $true`.
 - **HTML/SVG (05):** consider blocking these types outright with the anti-malware common attachments filter.
+- **Sequences (S1-S8):** exclude break-glass or service accounts, and raise the risk level to high only if medium-risk sign-ins are too noisy. Tune `chainWindow` at the top of each `15-S*.kql` file.
 - **Device code (07):** a Conditional Access *authentication flows* policy that blocks device code flow is the best mitigation.
 
 ## Disclaimer
@@ -131,6 +156,8 @@ This is community content provided as-is, without warranty. Test the queries in 
 - [Email bombing detection in Defender for Office 365](https://techcommunity.microsoft.com/blog/microsoftdefenderforoffice365blog/protecting-your-organization-against-email-bombing/4399227)
 - [Threat actors misusing Quick Assist in social engineering attacks](https://www.microsoft.com/en-us/security/blog/2024/05/15/threat-actors-misusing-quick-assist-in-social-engineering-attacks-leading-to-ransomware/)
 - [Storm-2372 conducts device code phishing campaign](https://www.microsoft.com/en-us/security/blog/2025/02/13/storm-2372-conducts-device-code-phishing-campaign/)
+- [From cookie theft to BEC: AiTM phishing (Storm-1167)](https://www.microsoft.com/en-us/security/blog/2022/07/12/from-cookie-theft-to-bec-attackers-use-aitm-phishing-sites-as-entry-point-to-further-financial-fraud/)
+- [Octo Tempest crosses boundaries](https://www.microsoft.com/en-us/security/blog/2023/10/25/octo-tempest-crosses-boundaries-to-facilitate-extortion-encryption-and-destruction/)
 - [Custom detection rules (Defender XDR)](https://learn.microsoft.com/defender-xdr/custom-detection-rules)
 - [detectionRule resource type (Microsoft Graph)](https://learn.microsoft.com/graph/api/resources/security-detectionrule)
 - [Advanced hunting email tables](https://learn.microsoft.com/defender-xdr/advanced-hunting-emailevents-table)

@@ -1,0 +1,32 @@
+// MDO-S8 | Full AiTM chain: phishing click -> risky sign-in -> inbox/forwarding rule
+// The user clicks a phishing URL, a successful medium/high-risk sign-in for that user follows
+// within 2 hours, and an inbox rule or mailbox forwarding that hides or forwards mail is created
+// within 24 hours of the sign-in. Fires on the rule event.
+// Frequency: every 1 hour (4 hour lookback). Requires Entra ID P2 (EntraIdSignInEvents).
+let lookback = 4h;
+let chainWindow = 26h;
+let clicks = UrlClickEvents
+    | where Timestamp > ago(lookback + chainWindow)
+    | where ThreatTypes has "Phish" or tostring(IsClickedThrough) in ("1", "true", "True")
+    | project ClickTime = Timestamp, AccountUpn = tolower(AccountUpn), Url, ClickNetworkMessageId = NetworkMessageId;
+let risky = EntraIdSignInEvents
+    | where Timestamp > ago(lookback + chainWindow)
+    | where ErrorCode == 0 and RiskLevelDuringSignIn in (50, 100)
+    | project RiskTime = Timestamp, AccountUpn = tolower(AccountUpn), AccountObjectId, RiskIP = IPAddress;
+let clickThenRisk = clicks
+    | join kind=inner risky on AccountUpn
+    | where RiskTime between ((ClickTime - 5m) .. (ClickTime + 2h))
+    | summarize ClickTime = min(ClickTime), Urls = make_set(Url, 3), ClickNetworkMessageId = take_any(ClickNetworkMessageId),
+        RiskTime = min(RiskTime), RiskIPs = make_set(RiskIP, 5) by AccountObjectId, AccountUpn;
+CloudAppEvents
+| where Timestamp > ago(lookback)
+| where Application == "Microsoft Exchange Online"
+| where ActionType in ("New-InboxRule", "Set-InboxRule", "UpdateInboxRules", "Set-Mailbox")
+| extend Params = strcat(tostring(RawEventData.Parameters), tostring(RawEventData.OperationProperties))
+| where ActionType != "Set-Mailbox"
+    or Params has_any ("ForwardingSmtpAddress", "ForwardingAddress", "DeliverToMailboxAndForward")
+| where Params has_any ("DeleteMessage", "SoftDeleteMessage", "MarkAsRead", "MoveToFolder", "RSS", "Conversation History", "Archive", "ForwardTo", "RedirectTo", "ForwardAsAttachmentTo", "ForwardingSmtpAddress", "ForwardingAddress")
+| join kind=inner clickThenRisk on AccountObjectId
+| where Timestamp between (RiskTime .. (RiskTime + 24h))
+| project Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, CountryCode, ActionType, Params,
+    ClickTime, Urls, ClickNetworkMessageId, RiskTime, RiskIPs

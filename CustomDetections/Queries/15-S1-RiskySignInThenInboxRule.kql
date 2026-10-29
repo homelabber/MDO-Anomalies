@@ -1,0 +1,36 @@
+// MDO-S1 | Risky sign-in followed by a suspicious inbox or forwarding rule
+// A successful medium/high-risk sign-in (Entra ID Protection) is followed within 24 hours by an
+// inbox rule or mailbox forwarding that deletes, hides, moves or forwards mail. Classic AiTM/BEC
+// persistence. Score adds weight for forwarding, finance keywords, an obfuscated rule name
+// (".", "..", a single character), or the rule coming from the same IP as the risky sign-in.
+// Frequency: every 1 hour (4 hour lookback). Requires Entra ID P2 (EntraIdSignInEvents).
+let lookback = 4h;
+let chainWindow = 24h;
+let riskySignIns = EntraIdSignInEvents
+    | where Timestamp > ago(lookback + chainWindow)
+    | where ErrorCode == 0 and RiskLevelDuringSignIn in (50, 100)
+    | where isnotempty(AccountObjectId)
+    | project RiskTime = Timestamp, AccountObjectId, RiskIP = IPAddress, RiskCountry = Country;
+CloudAppEvents
+| where Timestamp > ago(lookback)
+| where Application == "Microsoft Exchange Online"
+| where ActionType in ("New-InboxRule", "Set-InboxRule", "UpdateInboxRules", "Set-Mailbox")
+| extend Params = strcat(tostring(RawEventData.Parameters), tostring(RawEventData.OperationProperties))
+| where ActionType != "Set-Mailbox"
+    or Params has_any ("ForwardingSmtpAddress", "ForwardingAddress", "DeliverToMailboxAndForward")
+| extend HidesMail = Params has_any ("DeleteMessage", "SoftDeleteMessage", "MarkAsRead", "MoveToFolder", "RSS", "Conversation History", "Archive"),
+    Forwards = Params has_any ("ForwardTo", "RedirectTo", "ForwardAsAttachmentTo", "ForwardingSmtpAddress", "ForwardingAddress"),
+    FinanceKeywords = Params has_any ("invoice", "payment", "wire", "bank", "banking", "remittance", "ACH", "payroll", "W-2", "transfer", "overdue", "statement"),
+    RuleName = extract(@'"Name"\s*:\s*"Name"\s*,\s*"Value"\s*:\s*"([^"]*)"', 1, Params)
+| where HidesMail or Forwards
+| extend ObfuscatedName = isnotempty(RuleName) and (strlen(trim(" ", RuleName)) <= 2 or RuleName matches regex "^[^A-Za-z0-9]+$")
+| extend AccountUpn = tolower(tostring(RawEventData.UserId))
+| join kind=inner riskySignIns on AccountObjectId
+| where Timestamp between (RiskTime .. (RiskTime + chainWindow))
+| summarize RiskTime = min(RiskTime), RiskIPs = make_set(RiskIP, 5), RiskCountries = make_set(RiskCountry, 5),
+    SameIP = countif(IPAddress == RiskIP) > 0
+    by Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, CountryCode, ActionType, RuleName,
+    HidesMail, Forwards, FinanceKeywords, ObfuscatedName, Params
+| extend Score = 1 + 2 * toint(Forwards) + 2 * toint(FinanceKeywords) + 2 * toint(ObfuscatedName) + 2 * toint(SameIP)
+| project Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, CountryCode, Score, ActionType, RuleName,
+    HidesMail, Forwards, FinanceKeywords, ObfuscatedName, SameIP, RiskTime, RiskIPs, RiskCountries, Params

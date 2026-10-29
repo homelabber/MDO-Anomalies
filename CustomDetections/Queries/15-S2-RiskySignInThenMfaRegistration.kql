@@ -1,0 +1,27 @@
+// MDO-S2 | Risky sign-in followed by a new MFA / security info registration
+// Within 24 hours of a successful medium/high-risk sign-in the same user registers or changes
+// security info (authenticator app, phone, FIDO key). Attackers do this after AiTM or help-desk
+// social engineering so they keep access after a password reset.
+// Frequency: every 1 hour (4 hour lookback). Requires Entra ID P2 (EntraIdSignInEvents) and
+// Entra ID audit events in CloudAppEvents.
+let lookback = 4h;
+let chainWindow = 24h;
+let riskySignIns = EntraIdSignInEvents
+    | where Timestamp > ago(lookback + chainWindow)
+    | where ErrorCode == 0 and RiskLevelDuringSignIn in (50, 100)
+    | where isnotempty(AccountObjectId)
+    | project RiskTime = Timestamp, AccountObjectId, RiskIP = IPAddress, RiskCountry = Country;
+CloudAppEvents
+| where Timestamp > ago(lookback)
+| where ActionType in~ ("User registered security info.", "User registered security info",
+    "User registered all required security info.", "User registered all required security info",
+    "User changed default security info.", "User changed default security info")
+| where isnotempty(AccountObjectId)
+| extend AccountUpn = tolower(tostring(RawEventData.UserId))
+| join kind=inner riskySignIns on AccountObjectId
+| where Timestamp between (RiskTime .. (RiskTime + chainWindow))
+| summarize RiskTime = min(RiskTime), RiskIPs = make_set(RiskIP, 5), RiskCountries = make_set(RiskCountry, 5),
+    SameIP = countif(IPAddress == RiskIP) > 0
+    by Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, CountryCode, ActionType, ObjectName
+| project Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, CountryCode, ActionType, ObjectName,
+    SameIP, RiskTime, RiskIPs, RiskCountries

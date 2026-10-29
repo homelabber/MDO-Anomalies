@@ -1,0 +1,26 @@
+// MDO-S3 | Risky sign-in followed by OAuth application consent
+// Within 24 hours of a successful medium/high-risk sign-in the same user consents to an OAuth
+// application. Consent phishing and post-AiTM persistence: a mail-reading app keeps working after
+// the password is reset.
+// Frequency: every 1 hour (4 hour lookback). Requires Entra ID P2 (EntraIdSignInEvents) and
+// Entra ID audit events in CloudAppEvents.
+let lookback = 4h;
+let chainWindow = 24h;
+let riskySignIns = EntraIdSignInEvents
+    | where Timestamp > ago(lookback + chainWindow)
+    | where ErrorCode == 0 and RiskLevelDuringSignIn in (50, 100)
+    | where isnotempty(AccountObjectId)
+    | project RiskTime = Timestamp, AccountObjectId, RiskIP = IPAddress, RiskCountry = Country;
+CloudAppEvents
+| where Timestamp > ago(lookback)
+| where ActionType in~ ("Consent to application.", "Consent to application")
+| where isnotempty(AccountObjectId)
+| extend AccountUpn = tolower(tostring(RawEventData.UserId)), Props = tostring(RawEventData.ModifiedProperties)
+| extend AdminConsent = Props has "IsAdminConsent" and Props has "True",
+    Permissions = extract(@"Scope:\s*([^,\]]+)", 1, Props)
+| join kind=inner riskySignIns on AccountObjectId
+| where Timestamp between (RiskTime .. (RiskTime + chainWindow))
+| summarize RiskTime = min(RiskTime), RiskIPs = make_set(RiskIP, 5), RiskCountries = make_set(RiskCountry, 5)
+    by Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, CountryCode, App = ObjectName, AdminConsent, Permissions
+| project Timestamp, ReportId, AccountUpn, AccountObjectId, IPAddress, CountryCode, App, AdminConsent, Permissions,
+    RiskTime, RiskIPs, RiskCountries
