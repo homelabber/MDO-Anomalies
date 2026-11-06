@@ -2,6 +2,8 @@
 
 This repo has a **Microsoft Sentinel workbook** and a set of **Microsoft Defender XDR custom detections** for the mail-borne attack patterns that Microsoft Threat Intelligence tracks and Microsoft Defender for Office 365 (MDO) surfaces. It covers mail bombing and twelve other patterns, a view of mail flagged by MDO's LLM-based content analysis, and multi-step **attack sequences** (for example a risky sign-in followed by a new inbox rule).
 
+Need to share findings with someone who doesn't have Sentinel open? An [HTML report export](#export-an-html-report) runs the same workbook queries and writes one self-contained file.
+
 Detections are built as **custom detections** rather than Sentinel scheduled analytics rules, in line with Microsoft's move to unified detections in the Defender portal. They can run every hour, use the Advanced Hunting tables directly (including columns not streamed to Sentinel, such as `LatestDeliveryLocation`), and support response actions.
 
 ## Coverage
@@ -50,6 +52,8 @@ A "Users hit by more than one sequence" table ranks users who show several chain
 Workbook/
   MDO-Mail-Anomalies.json       # Workbook gallery template (paste into Advanced Editor)
   azuredeploy.json              # ARM template that deploys the workbook
+Report/
+  Export-MDOAnomaliesReport.ps1 # Runs the workbook queries and writes an HTML findings report
 CustomDetections/
   detections.json               # Rule metadata: severity, frequency, entities, MITRE
   Queries/*.kql                 # One KQL query per custom detection
@@ -91,6 +95,60 @@ az deployment group create -g <resource-group> \
   --template-uri https://raw.githubusercontent.com/homelabber/MDO-Anomalies/main/Workbook/azuredeploy.json \
   --parameters workspaceResourceId=<workspace-resource-id>
 ```
+
+## Export an HTML report
+
+[`Report/Export-MDOAnomaliesReport.ps1`](Report/Export-MDOAnomaliesReport.ps1) runs every workbook query against your workspace for a time range and writes **one self-contained HTML file**: no external scripts, fonts, or images. You can attach it to an incident, email it, or open it offline. The workbook doesn't need to be deployed. The script reads the queries from `Workbook/MDO-Mail-Anomalies.json` at run time, so the report always matches your copy of the workbook.
+
+The report contains:
+
+- A header with the workspace, time range, and query counts.
+- A tab index with **hits/queries** badges, plus an *only show queries that returned results* filter.
+- Each tab's description, followed by its results:
+  - tiles as cards, with non-zero counts highlighted
+  - bar and pie charts as bars
+  - time charts as inline SVG
+  - tables as sortable tables
+- Failed queries shown inline with the API error, so one missing table doesn't sink the whole report.
+
+It prints cleanly, with one tab per page.
+
+**Requirements**
+
+- PowerShell 7 (recommended) or Windows PowerShell 5.1.
+- An identity with read access to the workspace, such as **Log Analytics Reader** or **Microsoft Sentinel Reader**.
+- One way to get a token. The script tries `-AccessToken` first, then the current Az PowerShell context (`Connect-AzAccount`, Az.Accounts module), then the Azure CLI (`az login`).
+
+```powershell
+Connect-AzAccount
+
+# Last 7 days, all tabs
+.\Report\Export-MDOAnomaliesReport.ps1 -WorkspaceId <workspace-guid> -TimeRange 7d
+
+# Incident window, only the sequence and inbox-rule tabs, with the KQL behind each result
+.\Report\Export-MDOAnomaliesReport.ps1 -WorkspaceId <workspace-guid> `
+  -StartTime '2026-10-01 08:00' -EndTime '2026-10-02 08:00' `
+  -Tab sequences, inboxrules -IncludeQueries -OutputPath .\INC-1234-mail.html
+```
+
+| Parameter | Default | Description |
+|---|---|---|
+| `-WorkspaceId` | (required) | The workspace ID (GUID) from the Log Analytics workspace overview, not the resource ID |
+| `-TimeRange` | `1d` | `1h`, `4h`, `12h`, `1d`, `3d`, `7d`, `14d` or `30d`, ending now |
+| `-StartTime` / `-EndTime` | none / now | Absolute range, used instead of `-TimeRange` |
+| `-Tab` | all | Tab ids or labels, wildcards allowed: `overview`, `bombing`, `bombteams`, `qr`, `directsend`, `smuggling`, `aitm`, `devicecode`, `bec`, `callback`, `outbound`, `zap`, `inboxrules`, `lookalike`, `llm`, `sequences` |
+| `-OutputPath` | `.\MDO-Anomalies-Report-<yyyyMMdd-HHmm>.html` | Where to write the report |
+| `-MaxRows` | `250` | Rows shown per table. The full row count is always shown |
+| `-IncludeQueries` | off | Adds the executed KQL under each result |
+| `-Endpoint` | `https://api.loganalytics.io` | Use `https://api.loganalytics.us` for Azure Government |
+| `-AccessToken` | none | A Log Analytics API bearer token, as a `SecureString` |
+
+Notes:
+
+- Queries the workbook pins to a longer window, such as the 90-day look-alike baseline and the attack sequences, keep that window in the report as well.
+- The time grain for charts is picked from the range, the same way the workbook does it.
+- **The report contains real mailbox addresses, IP addresses, and subjects.** Treat it as confidential, and store and share it like any other incident evidence.
+- If you downloaded the script and your execution policy blocks it, review the script and then unblock it with `Unblock-File` or your organization's code-signing process. Don't lower the execution policy to run it.
 
 ## Deploy the custom detections
 
