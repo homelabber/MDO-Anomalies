@@ -255,5 +255,76 @@
       "ips": [ { "addressColumn": "IPAddress" } ]
     },
     "tactics": [ { "tactic": "CredentialAccess", "techniques": [ "T1557" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1564.008" ] } ]
+  },
+  {
+    "id": "mdo-16a-teams-threat-not-remediated",
+    "queryFile": "Queries/16a-TeamsThreatMessageNotRemediated.kql",
+    "displayName": "MDO-16a Malicious external Teams message delivered and not remediated",
+    "description": "Defender for Office 365 tagged a message in an external Teams chat as phish, malware or spam, it was delivered, and no successful ZAP or admin removal followed.",
+    "severity": "medium",
+    "frequency": "PT3H",
+    "recommendedActions": "Remove the message from the chat (Teams admin center or Threat Explorer), block the external sender or tenant, check whether the recipient clicked any link or replied, and review the user's sign-ins.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "RecipientUpn" } ],
+      "mailboxes": [ { "primaryAddressColumn": "SenderEmailAddress" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566.003" ] } ]
+  },
+  {
+    "id": "mdo-16b-external-teams-call-remote-tool",
+    "queryFile": "Queries/16b-ExternalTeamsCallThenRemoteTool.kql",
+    "displayName": "MDO-16b External Teams call followed by remote access tool launch",
+    "description": "A user took a Teams call from an external party (another tenant, consumer, PSTN, Azure Communication Services or unauthenticated) and a remote-access tool started on their device within 4 hours. Does not rely on the caller's display name.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Contact the user out-of-band. Isolate the device and end the remote session. Block the external caller or tenant in Teams. Hunt for payloads and persistence, then reset the user's credentials and revoke sessions.",
+    "entityMappings": {
+      "hosts": [ { "deviceIdColumn": "DeviceId", "nameColumn": "DeviceName" } ],
+      "accounts": [ { "upnColumn": "AccountUpn" } ],
+      "files": [ { "nameColumn": "FileName", "sha256Column": "SHA256" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566.004" ] }, { "tactic": "CommandAndControl", "techniques": [ "T1219" ] } ]
+  },
+  {
+    "id": "mdo-16c-deepfake-in-teams-call",
+    "queryFile": "Queries/16c-DeepfakeInTeamsCall.kql",
+    "displayName": "MDO-16c Deepfake detected in a Teams call",
+    "description": "A synthetic media detection engine flagged AI-generated voice or video in a Teams call as malicious or high severity. One alert row per internal participant.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Contact the participants out-of-band. Verify any requests made during the call (payments, password or MFA resets, data access) through a known channel. Check the participants for risky sign-ins, MFA changes and new inbox rules over the next 24 hours.",
+    "entityMappings": {
+      "accounts": [ { "upnColumn": "ParticipantUpn" } ]
+    },
+    "tactics": [ { "tactic": "DefenseEvasion", "techniques": [ "T1656" ] }, { "tactic": "InitialAccess", "techniques": [ "T1566.004" ] } ]
+  },
+  {
+    "id": "mdo-17-threat-delivered-by-allow-override",
+    "queryFile": "Queries/17-ThreatDeliveredByAllowOverride.kql",
+    "displayName": "MDO-17 Phish or malware delivered because of an allow override",
+    "description": "Defender for Office 365 detected phish or malware but the message was delivered because an org or user allow (transport rule, allowed sender or domain, Tenant Allow/Block List) overrode the verdict. Phishing simulation and SecOps mailbox overrides are excluded.",
+    "severity": "medium",
+    "frequency": "PT1H",
+    "recommendedActions": "Soft-delete the message, then review the override policy that allowed it. Narrow or remove broad sender, domain or transport-rule allows, and prefer Tenant Allow/Block List entries with expiry.",
+    "entityMappings": {
+      "mailboxes": [ { "primaryAddressColumn": "RecipientEmailAddress" } ],
+      "accounts": [ { "aadUserIdColumn": "RecipientObjectId" } ],
+      "mailMessages": [ { "networkMessageIdColumn": "NetworkMessageId", "recipientColumn": "RecipientEmailAddress", "senderColumn": "SenderFromAddress", "subjectColumn": "Subject" } ]
+    },
+    "tactics": [ { "tactic": "InitialAccess", "techniques": [ "T1566" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1562" ] } ]
+  },
+  {
+    "id": "mdo-s10-teams-remote-tool-payload",
+    "queryFile": "Queries/15-S10-ExternalTeamsRemoteToolPayload.kql",
+    "displayName": "MDO-S10 External Teams contact, remote tool, then payload",
+    "description": "An external party chatted or called the user on Teams, a remote-access tool started within 4 hours, then the same device ran a silent MSI install, a Node.js loader from AppData, or gained EdgeUpdate-named Run key or Startup persistence within 4 hours.",
+    "severity": "high",
+    "frequency": "PT1H",
+    "recommendedActions": "Treat as hands-on-keyboard intrusion: isolate the device, remove the persistence, collect an investigation package, reset credentials and revoke sessions, block the external party, and hunt for lateral movement.",
+    "entityMappings": {
+      "hosts": [ { "deviceIdColumn": "DeviceId", "nameColumn": "DeviceName" } ],
+      "accounts": [ { "upnColumn": "AccountUpn" } ]
+    },
+    "tactics": [ { "tactic": "CommandAndControl", "techniques": [ "T1219" ] }, { "tactic": "DefenseEvasion", "techniques": [ "T1218.007" ] }, { "tactic": "Persistence", "techniques": [ "T1547.001" ] } ]
   }
 ]

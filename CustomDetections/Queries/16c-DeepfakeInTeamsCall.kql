@@ -1,0 +1,29 @@
+// MDO-16c | Deepfake (synthetic media) detected in a Teams call
+// A synthetic media detection engine flagged AI-generated voice or video in a call
+// as malicious or high severity. Returns one row per internal participant so each
+// targeted user gets an alert. Requires an approved detection engine (Microsoft,
+// GetReal, Pindrop, Reality Defender or Resemble AI).
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let detections = SyntheticMediaDetectionEvents
+    | where Timestamp > ago(lookback)
+    | where IsMalicious == true or Severity =~ "High"
+    | project Timestamp, ReportId = DetectionId, CallId = SourceId, Severity, ConfidenceScore,
+        Modality, DetectedUserDisplayName, DetectedUserIdType, DetectionProviderName,
+        IsRealTime, SourceContextName, SourceContextUrl;
+let participants = CallActivityEvents
+    | where ActivityTimestamp > ago(lookback + 1d)
+    | where CallId in ((detections | distinct CallId))
+    | extend P = pack_array(
+        bag_pack("upn", ActivityInitiatorUpn, "type", ActivityInitiatorAccountType, "name", ActivityInitiatorDisplayName),
+        bag_pack("upn", ActivityRecipientUpn, "type", ActivityRecipientAccountType, "name", ActivityRecipientDisplayName))
+    | mv-expand P
+    | project CallId, ParticipantUpn = tolower(tostring(P.upn)), AccountType = tostring(P.type), ParticipantName = tostring(P.name)
+    | where isnotempty(ParticipantUpn) and AccountType =~ "Entra"
+    | distinct CallId, ParticipantUpn, ParticipantName;
+detections
+| join kind=leftouter participants on CallId
+| where isempty(ParticipantName) or ParticipantName != DetectedUserDisplayName
+| project Timestamp, ReportId, CallId, ParticipantUpn, Severity, ConfidenceScore, Modality,
+    DetectedUserDisplayName, DetectedUserIdType, DetectionProviderName, IsRealTime,
+    SourceContextName, SourceContextUrl

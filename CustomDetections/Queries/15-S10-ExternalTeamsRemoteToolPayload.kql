@@ -1,0 +1,64 @@
+// MDO-S10 | External Teams contact -> remote access tool -> payload or persistence
+// Help-desk impersonation playbook (2026): an external party chats or calls the user
+// on Teams, a remote-access tool starts within 4 hours, then within 4 hours the same
+// device runs a silent MSI install, a Node.js loader from AppData, or gains
+// EdgeUpdate-named Run key or Startup folder persistence. Requires Defender for Endpoint.
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let window = 4h;
+let remoteTools = dynamic([
+    "quickassist.exe", "anydesk.exe", "teamviewer.exe", "teamviewer_service.exe",
+    "screenconnect.clientservice.exe", "screenconnect.windowsclient.exe",
+    "rustdesk.exe", "splashtop.exe", "srservice.exe", "zaservice.exe",
+    "rutserv.exe", "supremo.exe", "client32.exe", "atera_agent.exe",
+    "level.exe", "remoteutilities.exe", "dwagent.exe"]);
+let contact = union isfuzzy=true
+    (CallActivityEvents
+    | where ActivityTimestamp > ago(lookback + 2 * window)
+    | where (isnotempty(ActivityInitiatorAccountType) and ActivityInitiatorAccountType !~ "Entra")
+        or (isnotempty(ActivityInitiatorTenantDisplayName) and isnotempty(ActivityRecipientTenantDisplayName)
+            and ActivityInitiatorTenantDisplayName != ActivityRecipientTenantDisplayName)
+    | project ContactTime = ActivityTimestamp, Victim = tolower(ActivityRecipientUpn), Channel = "Teams call",
+        Party = coalesce(ActivityInitiatorUpn, ActivityInitiatorPhoneNumber, ActivityInitiatorId)),
+    (MessageEvents
+    | where Timestamp > ago(lookback + 2 * window)
+    | where IsExternalThread == true
+    | mv-expand R = RecipientDetails
+    | project ContactTime = Timestamp, Victim = tolower(tostring(R.RecipientSmtpAddress)), Channel = "Teams chat",
+        Party = SenderEmailAddress)
+    | where isnotempty(Victim)
+    | summarize ContactTime = min(ContactTime), Channels = make_set(Channel), Parties = make_set(Party, 5) by Victim;
+let rmm = DeviceProcessEvents
+    | where Timestamp > ago(lookback + window)
+    | where FileName in~ (remoteTools)
+    | extend Victim = tolower(coalesce(AccountUpn, InitiatingProcessAccountUpn))
+    | join kind=inner contact on Victim
+    | where Timestamp between (ContactTime .. (ContactTime + window))
+    | summarize RmmTime = min(Timestamp), RmmTools = make_set(FileName), ContactTime = min(ContactTime),
+        Channels = take_any(Channels), Parties = take_any(Parties) by DeviceId, Victim;
+let payload = union isfuzzy=true
+    (DeviceProcessEvents
+    | where Timestamp > ago(lookback)
+    | where (FileName =~ "msiexec.exe" and (ProcessCommandLine matches regex @"(?i)https?://"
+            or (ProcessCommandLine has_any ("/qn", "/quiet", "-qn")
+                and InitiatingProcessFileName in~ ("powershell.exe", "pwsh.exe", "cmd.exe"))))
+        or ((FileName =~ "node.exe" or ProcessVersionInfoOriginalFileName =~ "node.exe") and FolderPath contains @"\AppData\")
+    | project Timestamp, ReportId, DeviceId, DeviceName,
+        Step = iff(FileName =~ "msiexec.exe", "Silent MSI install", "Node.js from AppData"),
+        Evidence = ProcessCommandLine),
+    (DeviceRegistryEvents
+    | where Timestamp > ago(lookback)
+    | where ActionType == "RegistryValueSet" and RegistryKey contains @"\CurrentVersion\Run"
+        and RegistryValueName contains "EdgeUpdate"
+        and RegistryValueData has_any ("AppData", "node", ".js", ".tmp", ".dat", ".bin", ".cfg", ".ini")
+    | project Timestamp, ReportId, DeviceId, DeviceName, Step = "EdgeUpdate Run-key persistence",
+        Evidence = strcat(RegistryValueName, " = ", RegistryValueData)),
+    (DeviceFileEvents
+    | where Timestamp > ago(lookback)
+    | where FolderPath contains @"\Start Menu\Programs\Startup" and FileName contains "EdgeUpdate"
+    | project Timestamp, ReportId, DeviceId, DeviceName, Step = "EdgeUpdate Startup shortcut", Evidence = FolderPath);
+payload
+| join kind=inner rmm on DeviceId
+| where Timestamp between (RmmTime .. (RmmTime + window))
+| project Timestamp, ReportId, DeviceId, DeviceName, AccountUpn = Victim, Step, Evidence,
+    RmmTime, RmmTools, ContactTime, Channels, Parties

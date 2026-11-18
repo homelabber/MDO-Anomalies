@@ -1,0 +1,21 @@
+// MDO-16a | Malicious external Teams message delivered and not remediated
+// Defender for Office 365 tagged a message in an external Teams chat with a threat
+// (phish, malware, spam) but it was delivered and no successful ZAP or admin removal
+// followed. Requires Defender for Office 365 Plan 2 with Teams protection.
+// Frequency: every 3 hours (12 hour lookback)
+let lookback = 12h;
+let remediated = MessagePostDeliveryEvents
+    | where Timestamp > ago(lookback)
+    | where ActionResult =~ "Success"
+    | distinct TeamsMessageId;
+MessageEvents
+| where Timestamp > ago(lookback)
+| where IsExternalThread == true
+| where isnotempty(ThreatTypes) and tostring(ThreatTypes) !in ("[]", "{}")
+| where DeliveryAction !~ "Blocked"
+| where TeamsMessageId !in (remediated)
+| mv-expand R = RecipientDetails
+| extend RecipientUpn = tolower(tostring(R.RecipientSmtpAddress))
+| where isnotempty(RecipientUpn)
+| project Timestamp, ReportId, TeamsMessageId, ThreadId, RecipientUpn, SenderEmailAddress,
+    SenderDisplayName, SenderType, ThreatTypes, DetectionMethods, DeliveryAction, DeliveryLocation

@@ -1,0 +1,37 @@
+// MDO-16b | External Teams call followed by remote access tool launch
+// A user took a Teams call from an external party (another tenant, consumer, PSTN,
+// Azure Communication Services or unauthenticated) and a remote-access tool started
+// on their device within 4 hours. Does not rely on the caller's display name, which
+// actors now set to ordinary personal names. Requires Defender for Endpoint.
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+let callWindow = 4h;
+let remoteTools = dynamic([
+    "quickassist.exe", "anydesk.exe", "teamviewer.exe", "teamviewer_service.exe",
+    "screenconnect.clientservice.exe", "screenconnect.windowsclient.exe",
+    "rustdesk.exe", "splashtop.exe", "srservice.exe", "zaservice.exe",
+    "rutserv.exe", "supremo.exe", "client32.exe", "atera_agent.exe",
+    "level.exe", "remoteutilities.exe", "dwagent.exe"]);
+let externalCalls = CallActivityEvents
+    | where ActivityTimestamp > ago(lookback + callWindow)
+    | where (isnotempty(ActivityInitiatorAccountType) and ActivityInitiatorAccountType !~ "Entra")
+        or (isnotempty(ActivityInitiatorTenantDisplayName) and isnotempty(ActivityRecipientTenantDisplayName)
+            and ActivityInitiatorTenantDisplayName != ActivityRecipientTenantDisplayName)
+    | extend Victim = tolower(ActivityRecipientUpn)
+    | where isnotempty(Victim)
+    | summarize CallTime = min(ActivityTimestamp), CallIds = make_set(CallId, 5),
+        Callers = make_set(coalesce(ActivityInitiatorUpn, ActivityInitiatorPhoneNumber, ActivityInitiatorId), 5),
+        CallerDisplayNames = make_set(ActivityInitiatorDisplayName, 5),
+        CallerTenants = make_set(ActivityInitiatorTenantDisplayName, 5),
+        CallerAccountTypes = make_set(ActivityInitiatorAccountType, 5)
+        by Victim;
+DeviceProcessEvents
+| where Timestamp > ago(lookback)
+| where FileName in~ (remoteTools)
+| extend Victim = tolower(coalesce(AccountUpn, InitiatingProcessAccountUpn))
+| where isnotempty(Victim)
+| join kind=inner externalCalls on Victim
+| where Timestamp between (CallTime .. (CallTime + callWindow))
+| project Timestamp, ReportId, DeviceId, DeviceName, AccountUpn = Victim, AccountName,
+    FileName, ProcessCommandLine, SHA256, CallTime, Callers, CallerDisplayNames,
+    CallerTenants, CallerAccountTypes, CallIds

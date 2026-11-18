@@ -1,0 +1,18 @@
+// MDO-17 | Phish or malware delivered because of an allow override
+// Defender for Office 365 detected phish or malware but the message was delivered
+// because an org or user allow (transport rule, allowed sender/domain, Tenant
+// Allow/Block List) overrode the verdict. Phishing simulation and SecOps mailbox
+// overrides are excluded.
+// Frequency: every 1 hour (4 hour lookback)
+let lookback = 4h;
+EmailEvents
+| where Timestamp > ago(lookback)
+| where EmailDirection == "Inbound"
+| where ThreatTypes has_any ("Phish", "Malware")
+| where OrgLevelAction =~ "Allow" or UserLevelAction =~ "Allow"
+| where OrgLevelPolicy !in~ ("Phishing simulation", "SecOps mailbox")
+| where DeliveryAction == "Delivered"
+| extend OverridePolicy = iff(OrgLevelAction =~ "Allow", strcat("Org: ", OrgLevelPolicy), strcat("User: ", UserLevelPolicy))
+| project Timestamp, ReportId, NetworkMessageId, RecipientEmailAddress, RecipientObjectId,
+    SenderFromAddress, SenderDisplayName, SenderMailFromDomain, Subject, ThreatTypes,
+    DetectionMethods, OverridePolicy, DeliveryLocation, LatestDeliveryLocation

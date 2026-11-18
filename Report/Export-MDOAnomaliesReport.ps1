@@ -34,7 +34,7 @@
     End of an absolute time range. Defaults to now.
 
 .PARAMETER Tab
-    Tabs to include, by id (for example 'bombing', 'sequences') or label (for example '01*').
+    Tabs to include, by id (for example 'bombing', 'sequences', 'teams', 'overrides') or label (for example '01*').
     Wildcards are allowed. Defaults to all tabs.
 
 .PARAMETER OutputPath
