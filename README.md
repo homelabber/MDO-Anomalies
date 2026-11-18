@@ -63,6 +63,7 @@ Tab 17 follows Microsoft's Q3 2026 email threat report, which found that a large
 ## Repository layout
 
 ```
+version.json                    # Current release; read by the update checks
 Workbook/
   Phish-and-Chats.json       # Workbook gallery template (paste into Advanced Editor)
   azuredeploy.json              # ARM template that deploys the workbook
@@ -157,6 +158,7 @@ Connect-AzAccount
 | `-IncludeQueries` | off | Adds the executed KQL under each result |
 | `-Endpoint` | `https://api.loganalytics.io` | Use `https://api.loganalytics.us` for Azure Government |
 | `-AccessToken` | none | A Log Analytics API bearer token, as a `SecureString` |
+| `-SkipUpdateCheck` | off | Skips the check for a newer release (see [Staying up to date](#staying-up-to-date)) |
 
 Notes:
 
@@ -215,6 +217,23 @@ If you prefer to do it by hand, open **Defender portal > Hunting > Advanced hunt
 | mdo-s10-teams-remote-tool-payload | High | 1h | Device, account |
 
 Each query's lookback matches the documented custom-detection window for its frequency: 1h runs look back 4h and 3h runs look back 12h. This allows for ingestion delay. The sequence detections (`MDO-S*`) use the same 4h lookback for the final step and extend it by the chain window for earlier steps.
+
+## Staying up to date
+
+Phish & Chats checks for updates and tells you when one is out, but it never installs anything by itself. You decide when new detection logic reaches your SOC.
+
+- **Workbook:** the version banner at the top of the **Overview** tab reads [`version.json`](version.json) from this repo with `externaldata()`. It shows ✅ when you're current, or 🆕 with a link to the release notes when a newer version is out. If your workspace can't reach `raw.githubusercontent.com`, the banner shows an error and everything else keeps working. The installed version is also shown under the workbook title.
+- **Scripts:** `Deploy-CustomDetections.ps1` and `Export-PhishAndChatsReport.ps1` compare your local `version.json` with the one on GitHub. If a newer release is out, they print a one-line warning. The check times out after 5 seconds, fails silently, and only reads a version number. Use `-SkipUpdateCheck` to turn it off, for example in offline or locked-down environments.
+
+**To update:**
+
+1. Pull or download the new release, then review the changes and the [release notes](https://github.com/homelabber/Phish-and-Chats/releases).
+2. **Custom detections:** run `Deploy-CustomDetections.ps1` again. It updates existing rules by id, and new rules are created disabled unless you pass `-Status enabled`. Tuned thresholds are overwritten, so merge your changes into the `.kql` files first.
+3. **Workbook:** update the workbook you already have, instead of adding a second copy:
+   - **Paste:** open the workbook, select **Edit**, then **Advanced Editor**, replace the contents with the new `Workbook/Phish-and-Chats.json`, then **Apply** and **Save**.
+   - **ARM/CLI:** pass your existing workbook's GUID, which is the last segment of its resource ID: `--parameters workspaceResourceId=<id> workbookId=<existing-guid>`. Without it, the template creates a new workbook.
+
+For hands-off updates, fork the repo and connect your fork to [Microsoft Sentinel Repositories](https://learn.microsoft.com/azure/sentinel/ci-cd) for the workbook. Use a scheduled GitHub Action that runs the deploy script for the detections. Sync your fork on your own schedule, so a person reviews the changes before production does.
 
 ## Tuning
 

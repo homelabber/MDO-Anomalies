@@ -56,6 +56,10 @@
 .PARAMETER AccessToken
     A bearer token for the Log Analytics API, as a SecureString.
 
+.PARAMETER SkipUpdateCheck
+    Don't check GitHub for a newer Phish & Chats release. The check only compares version
+    numbers and prints a notice; it never downloads or changes anything.
+
 .EXAMPLE
     Connect-AzAccount
     .\Report\Export-PhishAndChatsReport.ps1 -WorkspaceId 00000000-0000-0000-0000-000000000000 -TimeRange 7d
@@ -93,10 +97,29 @@ param(
     [ValidatePattern('^https://')]
     [string]$Endpoint = 'https://api.loganalytics.io',
 
-    [securestring]$AccessToken
+    [securestring]$AccessToken,
+
+    [switch]$SkipUpdateCheck
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Test-PhishAndChatsUpdate {
+    try {
+        $local = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\version.json') -Raw | ConvertFrom-Json
+        $remote = Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/homelabber/Phish-and-Chats/main/version.json' -TimeoutSec 5
+        if ($remote -is [string]) { $remote = $remote | ConvertFrom-Json }
+        if ([version]$remote.version -gt [version]$local.version) {
+            Write-Warning "Phish & Chats v$($remote.version) is available (you have v$($local.version)). $($remote.summary) $($remote.releaseUrl)"
+        } else {
+            Write-Verbose "Phish & Chats v$($local.version) is up to date."
+        }
+    } catch {
+        Write-Verbose "Update check skipped: $($_.Exception.Message)"
+    }
+}
+if (-not $SkipUpdateCheck) { Test-PhishAndChatsUpdate }
+
 Set-StrictMode -Version 2.0
 $inv = [Globalization.CultureInfo]::InvariantCulture
 $isoFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'"
@@ -462,7 +485,8 @@ $tabs = @(foreach ($group in ($workbook.items | Where-Object { $_.type -eq 12 })
     $label = if ($tabLabels.ContainsKey($id)) { $tabLabels[$id] } else { $id }
     $selected = $false
     foreach ($pattern in $Tab) { if ($id -like $pattern -or $label -like $pattern) { $selected = $true; break } }
-    if ($selected) { [pscustomobject]@{ Id = $id; Label = $label; Items = @($group.content.items) } }
+    # The version-check tile is workbook UI, not a finding.
+    if ($selected) { [pscustomobject]@{ Id = $id; Label = $label; Items = @($group.content.items | Where-Object { $_.name -ne 'version-check' }) } }
 })
 if (-not $tabs.Count) { throw "No workbook tabs match -Tab $($Tab -join ', '). Tab ids: $(@($tabLabels.Keys | Sort-Object) -join ', ')" }
 #endregion

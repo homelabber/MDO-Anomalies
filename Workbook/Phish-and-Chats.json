@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# Phish & Chats: MDO email and Teams anomalies"
+        "json": "# Phish & Chats: MDO email and Teams anomalies\n<sub>v1.4.0</sub>"
       },
       "name": "title"
     },
@@ -221,11 +221,38 @@
         "groupType": "editable",
         "items": [
           {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let Installed = \"1.4.0\";\nexternaldata (version: string, released: string, releaseUrl: string, summary: string)\n    [@\"https://raw.githubusercontent.com/homelabber/Phish-and-Chats/main/version.json\"] with (format = \"multijson\")\n| take 1\n| extend UpdateAvailable = parse_version(version) > parse_version(Installed)\n| project Status = iff(UpdateAvailable, strcat(\"\ud83c\udd95 Phish & Chats v\", version, \" is available (released \", released, \"). You are on v\", Installed, \".\"),\n                       strcat(\"\u2705 You are on the latest version (v\", Installed, \").\")),\n          Details = iff(UpdateAvailable, summary, \"\"),\n          Link = iff(UpdateAvailable, releaseUrl, \"https://github.com/homelabber/Phish-and-Chats/releases\")",
+              "size": 3,
+              "title": "Version check",
+              "timeContextFromParameter": "TimeRange",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "visualization": "table",
+              "noDataMessage": "Version check unavailable: the workspace could not reach raw.githubusercontent.com.",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Link",
+                    "formatter": 7,
+                    "formatOptions": {
+                      "linkTarget": "Url",
+                      "linkLabel": "Release notes"
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "version-check"
+          },
+          {
             "type": 1,
             "content": {
               "json": "## Phish & Chats\n*MDO email and Teams anomaly detections.*\n\nThis workbook shows email and Teams attack patterns tracked by Microsoft Threat Intelligence and surfaced by **Microsoft Defender for Office 365**. Use the tabs to drill into each anomaly. Companion **Defender XDR custom detections** are in the `CustomDetections` folder of [homelabber/Phish-and-Chats](https://github.com/homelabber/Phish-and-Chats).\n\n**Data sources:** EmailEvents, EmailUrlInfo, EmailAttachmentInfo, EmailPostDeliveryEvents, UrlClickEvents and CloudAppEvents (Microsoft Defender XDR connector), SigninLogs, AuditLogs and AADUserRiskEvents (Entra ID connector), plus Teams tables (MessageEvents, MessagePostDeliveryEvents, MessageUrlInfo, CallActivityEvents, SyntheticMediaDetectionEvents) and DeviceProcessEvents, DeviceFileEvents, DeviceRegistryEvents and IdentityInfo where available. Streaming records are deduplicated per NetworkMessageId + recipient."
             },
-            "name": "text-1"
+            "name": "text-2"
           },
           {
             "type": 3,
@@ -264,7 +291,7 @@
                 "showBorder": true
               }
             },
-            "name": "query-2"
+            "name": "query-3"
           },
           {
             "type": 3,
@@ -279,7 +306,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-3",
+            "name": "query-4",
             "customWidth": "50"
           },
           {
@@ -295,7 +322,7 @@
               "visualization": "barchart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-4",
+            "name": "query-5",
             "customWidth": "50"
           },
           {
@@ -311,7 +338,7 @@
               "visualization": "piechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-5",
+            "name": "query-6",
             "customWidth": "50"
           },
           {
@@ -331,7 +358,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-6",
+            "name": "query-7",
             "customWidth": "50"
           }
         ]
@@ -354,7 +381,7 @@
             "content": {
               "json": "### Email bombing\nThe attacker subscribes the victim to hundreds of newsletters and sign-up forms to bury real alerts. Storm-1811 and Black Basta affiliates use it as the opener for fake help-desk calls. MDO tags this mail with the **Mail bombing** detection technology.\n\n**Custom detection:** `MDO-01`"
             },
-            "name": "text-7"
+            "name": "text-8"
           },
           {
             "type": 3,
@@ -369,7 +396,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-8"
+            "name": "query-9"
           },
           {
             "type": 3,
@@ -388,7 +415,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-9"
+            "name": "query-10"
           }
         ]
       },
@@ -410,7 +437,7 @@
             "content": {
               "json": "### Email bombing followed by external Teams contact or remote-access tool\nAfter the flood, the actor calls the victim or messages them from an **external Teams tenant** as \"IT support\" and talks them into running **Quick Assist** or another RMM tool. This tab joins bombed users to external Teams chats (MessageEvents), external Teams **calls** (CallActivityEvents) and remote-tool launches (DeviceProcessEvents) within 24 hours.\n\nMicrosoft's Q3 2026 email threat report notes that callers increasingly use **ordinary personal names** rather than \"IT Support\" or \"Help Desk\", so nothing here relies on the display name. A call is external when the caller is a consumer, PSTN, Azure Communication Services or unauthenticated account, or belongs to a different tenant than the recipient.\n\n**Custom detections:** `MDO-02a`, `MDO-02b`, `MDO-16b`. References: [Threat actors misusing Quick Assist](https://www.microsoft.com/en-us/security/blog/2024/05/15/threat-actors-misusing-quick-assist-in-social-engineering-attacks-leading-to-ransomware/), [Impersonating IT support](https://www.microsoft.com/en-us/security/blog/2026/09/02/impersonating-it-support-threat-actors-turn-remote-session-into-enterprise-wide-access/)"
             },
-            "name": "text-10"
+            "name": "text-11"
           },
           {
             "type": 3,
@@ -429,7 +456,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-11"
+            "name": "query-12"
           },
           {
             "type": 3,
@@ -448,7 +475,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-12"
+            "name": "query-13"
           },
           {
             "type": 3,
@@ -467,7 +494,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-13"
+            "name": "query-14"
           }
         ]
       },
@@ -489,7 +516,7 @@
             "content": {
               "json": "### QR code phishing (quishing)\nQR codes move the phishing URL to an unmanaged phone, out of reach of Safe Links. MDO extracts QR URLs and records them in EmailUrlInfo with `UrlLocation == \"QRCode\"`.\n\n**Custom detection:** `MDO-03`"
             },
-            "name": "text-14"
+            "name": "text-15"
           },
           {
             "type": 3,
@@ -504,7 +531,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-15",
+            "name": "query-16",
             "customWidth": "50"
           },
           {
@@ -520,7 +547,7 @@
               "visualization": "barchart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-16",
+            "name": "query-17",
             "customWidth": "50"
           },
           {
@@ -540,7 +567,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-17"
+            "name": "query-18"
           }
         ]
       },
@@ -562,7 +589,7 @@
             "content": {
               "json": "### Direct Send / internal-domain spoofing\nExchange Online **Direct Send** accepts unauthenticated mail to your MX for your own accepted domains. Attackers abuse it to send messages that appear internal (voicemail, HR, invoices). If you don't need Direct Send, consider `Set-OrganizationConfig -RejectDirectSend $true`.\n\n**Custom detection:** `MDO-04`"
             },
-            "name": "text-18"
+            "name": "text-19"
           },
           {
             "type": 3,
@@ -577,7 +604,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-19",
+            "name": "query-20",
             "customWidth": "50"
           },
           {
@@ -597,7 +624,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-20",
+            "name": "query-21",
             "customWidth": "50"
           },
           {
@@ -617,7 +644,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-21"
+            "name": "query-22"
           }
         ]
       },
@@ -639,7 +666,7 @@
             "content": {
               "json": "### HTML / SVG smuggling attachments\nSVG images and HTML files can carry JavaScript that builds a credential-phishing page or drops a payload locally, so it never touches URL scanning. Consider blocking these types with the common attachments filter.\n\n**Custom detection:** `MDO-05`"
             },
-            "name": "text-22"
+            "name": "text-23"
           },
           {
             "type": 3,
@@ -654,7 +681,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-23",
+            "name": "query-24",
             "customWidth": "50"
           },
           {
@@ -670,7 +697,7 @@
               "visualization": "piechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-24",
+            "name": "query-25",
             "customWidth": "50"
           },
           {
@@ -690,7 +717,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-25"
+            "name": "query-26"
           }
         ]
       },
@@ -712,7 +739,7 @@
             "content": {
               "json": "### Adversary-in-the-middle (AiTM) phishing\nAiTM kits (for example Tycoon2FA and EvilProxy) proxy the real Microsoft sign-in page and steal the session cookie. This tab correlates allowed or clicked-through phishing URLs with successful Entra ID sign-ins from a different IP within 1 hour.\n\n**Custom detection:** `MDO-06`"
             },
-            "name": "text-26"
+            "name": "text-27"
           },
           {
             "type": 3,
@@ -731,7 +758,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-27"
+            "name": "query-28"
           },
           {
             "type": 3,
@@ -750,7 +777,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-28"
+            "name": "query-29"
           }
         ]
       },
@@ -772,7 +799,7 @@
             "content": {
               "json": "### Device code phishing\nThe actor (for example Storm-2372) sends a lure (a Teams meeting invite, document, or chat) that asks the user to enter a code at `microsoft.com/devicelogin`, which hands the actor the user's tokens. Consider a Conditional Access policy that blocks the device code flow for users who don't need it.\n\n**Custom detection:** `MDO-07`. Reference: [Storm-2372 device code phishing](https://www.microsoft.com/en-us/security/blog/2025/02/13/storm-2372-conducts-device-code-phishing-campaign/)"
             },
-            "name": "text-29"
+            "name": "text-30"
           },
           {
             "type": 3,
@@ -787,7 +814,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-30",
+            "name": "query-31",
             "customWidth": "50"
           },
           {
@@ -807,7 +834,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-31",
+            "name": "query-32",
             "customWidth": "50"
           },
           {
@@ -827,7 +854,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-32"
+            "name": "query-33"
           }
         ]
       },
@@ -849,7 +876,7 @@
             "content": {
               "json": "### Business email compromise / impersonation\nThis covers user, domain, and brand impersonation and mailbox-intelligence detections, plus external senders whose display name matches an internal user (the display-name match needs the UEBA **IdentityInfo** table).\n\n**Custom detection:** `MDO-08`"
             },
-            "name": "text-33"
+            "name": "text-34"
           },
           {
             "type": 3,
@@ -864,7 +891,7 @@
               "visualization": "piechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-34",
+            "name": "query-35",
             "customWidth": "50"
           },
           {
@@ -884,7 +911,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-35",
+            "name": "query-36",
             "customWidth": "50"
           },
           {
@@ -904,7 +931,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-36"
+            "name": "query-37"
           }
         ]
       },
@@ -926,7 +953,7 @@
             "content": {
               "json": "### Callback phishing (TOAD: telephone-oriented attack delivery)\nThese lures contain **no links**, just a fake invoice or subscription renewal and a phone number. The phone call leads to remote-access installs or payment fraud. Because the message body isn't in the tables, this tab uses URL-less phish verdicts and billing-themed mail from free-mail senders. **Workbook only** (no custom detection) because of the false-positive rate."
             },
-            "name": "text-37"
+            "name": "text-38"
           },
           {
             "type": 3,
@@ -941,7 +968,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-38",
+            "name": "query-39",
             "customWidth": "50"
           },
           {
@@ -961,7 +988,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-39",
+            "name": "query-40",
             "customWidth": "50"
           },
           {
@@ -981,7 +1008,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-40"
+            "name": "query-41"
           }
         ]
       },
@@ -1003,7 +1030,7 @@
             "content": {
               "json": "### Compromised account sending outbound spam/phish\nCompromised mailboxes are used to phish partners and coworkers. Look for senders whose outbound mail is being flagged or blocked, or whose volume spikes. Also check the **Restricted entities** page in the Defender portal.\n\n**Custom detection:** `MDO-10`"
             },
-            "name": "text-41"
+            "name": "text-42"
           },
           {
             "type": 3,
@@ -1018,7 +1045,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-42"
+            "name": "query-43"
           },
           {
             "type": 3,
@@ -1037,7 +1064,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-43"
+            "name": "query-44"
           }
         ]
       },
@@ -1059,7 +1086,7 @@
             "content": {
               "json": "### Malicious mail still in inboxes (ZAP missed or failed)\nZero-hour auto purge (ZAP) removes mail that is found malicious after delivery. ZAP failures, allow-list overrides, or a disabled ZAP policy can leave phish or malware in the inbox. (LatestDeliveryLocation isn't streamed to Sentinel, so this tab uses EmailPostDeliveryEvents. The custom detection uses LatestDeliveryLocation directly.)\n\n**Custom detection:** `MDO-11`"
             },
-            "name": "text-44"
+            "name": "text-45"
           },
           {
             "type": 3,
@@ -1074,7 +1101,7 @@
               "visualization": "barchart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-45",
+            "name": "query-46",
             "customWidth": "50"
           },
           {
@@ -1094,7 +1121,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-46",
+            "name": "query-47",
             "customWidth": "50"
           },
           {
@@ -1114,7 +1141,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-47"
+            "name": "query-48"
           }
         ]
       },
@@ -1136,7 +1163,7 @@
             "content": {
               "json": "### Inbox and forwarding rules after phishing\nAfter an account takeover, actors create rules that delete or hide replies (often moving them to RSS or Archive) or that forward mail out. This tab flags rule changes by users who received phish or clicked a phishing URL in the previous 3 days.\n\n**Custom detection:** `MDO-12`"
             },
-            "name": "text-48"
+            "name": "text-49"
           },
           {
             "type": 3,
@@ -1155,7 +1182,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-49"
+            "name": "query-50"
           }
         ]
       },
@@ -1177,7 +1204,7 @@
             "content": {
               "json": "### Look-alike and newly seen sender domains\nBEC and phishing campaigns often use typosquatted versions of your domain (for example `contos0.com` or `contoso-support.com`) or freshly registered domains. This tab normalizes common character swaps (rn to m, 0 to o, 1 to l, vv to w) and compares sender domains with your recipient domains. It also lists sender domains not seen in the prior 30 days. **Workbook only.**"
             },
-            "name": "text-50"
+            "name": "text-51"
           },
           {
             "type": 3,
@@ -1196,7 +1223,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-51"
+            "name": "query-52"
           },
           {
             "type": 3,
@@ -1217,7 +1244,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-52"
+            "name": "query-53"
           }
         ]
       },
@@ -1239,7 +1266,7 @@
             "content": {
               "json": "### Mail flagged by MDO's LLM content analysis\nDefender for Office 365 runs purpose-built large language models that read the message's content and **intent** (for example urgency, payment-change requests, credential requests, or callback lures). Matches show up as the **LLM content analysis** detection technology.\n\n**How to read this tab:** this is mail that *Microsoft's* AI flagged. It does **not** prove the attacker used AI to write it, and nothing in the data shows that. **LLM-only** detections, where no reputation, detonation, impersonation, or fingerprint signal also fired, are the best available stand-in for novel, well-written lures (often AI-assisted) that traditional filters would have missed.\n\n**Custom detection:** `MDO-14` (LLM-flagged mail still in the inbox)"
             },
-            "name": "text-53"
+            "name": "text-54"
           },
           {
             "type": 3,
@@ -1254,7 +1281,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-54",
+            "name": "query-55",
             "customWidth": "50"
           },
           {
@@ -1270,7 +1297,7 @@
               "visualization": "piechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-55",
+            "name": "query-56",
             "customWidth": "50"
           },
           {
@@ -1286,7 +1313,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-56",
+            "name": "query-57",
             "customWidth": "50"
           },
           {
@@ -1302,7 +1329,7 @@
               "visualization": "piechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-57",
+            "name": "query-58",
             "customWidth": "50"
           },
           {
@@ -1318,7 +1345,7 @@
               "visualization": "barchart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-58"
+            "name": "query-59"
           },
           {
             "type": 3,
@@ -1337,7 +1364,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-59"
+            "name": "query-60"
           }
         ]
       },
@@ -1359,7 +1386,7 @@
             "content": {
               "json": "### Post-compromise attack sequences\nSingle events are noisy; **sequences** for the same user are not. Each chain below is a post-compromise pattern Microsoft has documented in AiTM/BEC (Storm-1167), help-desk social engineering (Octo Tempest, Storm-0501) and consent-phishing reporting. Risk comes from Entra ID Protection (SigninLogs medium/high risk or AADUserRiskEvents, including offline detections such as anomalous token and attacker-in-the-middle). Inbox rules are scored: forwarding, finance keywords, an obfuscated rule name (`.`, `..`, a single character), or the same IP as the risky sign-in each add weight.\n\nS10 follows the 2026 help-desk impersonation playbook (external Teams chat or call, then a remote-support tool, then a silent MSI, Node.js loader or EdgeUpdate-named persistence). S11 follows a deepfake detection in a Teams call to a risky sign-in, MFA or password change, inbox rule or finance mail by a participant (needs a synthetic media detection engine).\n\n**Custom detections:** `MDO-S1`, `MDO-S2`, `MDO-S3`, `MDO-S6`, `MDO-S8`, `MDO-S10`. S4, S5, S7, S9 and S11 are workbook only.\n\nEarlier steps (risk events, inbox rules) look back 3 days before the start of the selected time range so chains that began just before it are still caught."
             },
-            "name": "text-60"
+            "name": "text-61"
           },
           {
             "type": 3,
@@ -1400,7 +1427,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-61"
+            "name": "query-62"
           },
           {
             "type": 3,
@@ -1421,7 +1448,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-62"
+            "name": "query-63"
           },
           {
             "type": 3,
@@ -1442,7 +1469,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-63"
+            "name": "query-64"
           },
           {
             "type": 3,
@@ -1463,7 +1490,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-64"
+            "name": "query-65"
           },
           {
             "type": 3,
@@ -1484,7 +1511,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-65"
+            "name": "query-66"
           },
           {
             "type": 3,
@@ -1505,7 +1532,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-66"
+            "name": "query-67"
           },
           {
             "type": 3,
@@ -1526,7 +1553,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-67"
+            "name": "query-68"
           },
           {
             "type": 3,
@@ -1547,7 +1574,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-68"
+            "name": "query-69"
           },
           {
             "type": 3,
@@ -1568,7 +1595,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-69"
+            "name": "query-70"
           },
           {
             "type": 3,
@@ -1589,7 +1616,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-70"
+            "name": "query-71"
           },
           {
             "type": 3,
@@ -1610,7 +1637,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-71"
+            "name": "query-72"
           },
           {
             "type": 3,
@@ -1631,7 +1658,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-72"
+            "name": "query-73"
           },
           {
             "type": 3,
@@ -1652,7 +1679,7 @@
                 "durationMs": 7776000000
               }
             },
-            "name": "query-73"
+            "name": "query-74"
           }
         ]
       },
@@ -1674,7 +1701,7 @@
             "content": {
               "json": "### Microsoft Teams threats\nThreat actors now open with Teams as often as with mail: external chats and calls posing as IT support (often after mail bombing), malicious links in chats, and in 2026 AI-generated voice and video in calls. Defender for Office 365 now records Teams messages (`MessageEvents`), post-delivery ZAP and admin actions (`MessagePostDeliveryEvents`), URLs (`MessageUrlInfo`), Teams clicks (`UrlClickEvents`, workload Teams), call activity (`CallActivityEvents`) and deepfake detections (`SyntheticMediaDetectionEvents`, needs an approved detection engine). Tables you don't have yet return empty rather than erroring.\n\nExternal callers are identified by account type (consumer, PSTN, Azure Communication Services, unauthenticated) or a tenant different from the recipient's, never by display name.\n\n**Custom detections:** `MDO-16a`, `MDO-16b`, `MDO-16c`.\n\nReferences: [What's new in Defender for Office 365](https://learn.microsoft.com/en-us/defender-office-365/defender-for-office-365-whats-new), [CallActivityEvents](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-callactivityevents-table), [SyntheticMediaDetectionEvents](https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-synthetic-media-detection-events), [Cross-tenant help-desk impersonation](https://www.microsoft.com/en-us/security/blog/2026/04/18/crosstenant-helpdesk-impersonation-data-exfiltration-human-operated-intrusion-playbook/)"
             },
-            "name": "text-74"
+            "name": "text-75"
           },
           {
             "type": 3,
@@ -1713,7 +1740,7 @@
                 "showBorder": true
               }
             },
-            "name": "query-75"
+            "name": "query-76"
           },
           {
             "type": 3,
@@ -1728,7 +1755,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-76",
+            "name": "query-77",
             "customWidth": "50"
           },
           {
@@ -1744,7 +1771,7 @@
               "visualization": "barchart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-77",
+            "name": "query-78",
             "customWidth": "50"
           },
           {
@@ -1764,7 +1791,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-78"
+            "name": "query-79"
           },
           {
             "type": 3,
@@ -1783,7 +1810,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-79"
+            "name": "query-80"
           },
           {
             "type": 3,
@@ -1802,7 +1829,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-80"
+            "name": "query-81"
           },
           {
             "type": 3,
@@ -1821,7 +1848,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-81"
+            "name": "query-82"
           },
           {
             "type": 3,
@@ -1840,7 +1867,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-82",
+            "name": "query-83",
             "customWidth": "50"
           },
           {
@@ -1860,7 +1887,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-83",
+            "name": "query-84",
             "customWidth": "50"
           },
           {
@@ -1880,7 +1907,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-84"
+            "name": "query-85"
           },
           {
             "type": 3,
@@ -1899,7 +1926,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-85"
+            "name": "query-86"
           }
         ]
       },
@@ -1921,7 +1948,7 @@
             "content": {
               "json": "### Allow-list overrides\nMicrosoft's Q3 2026 email threat report found a large share of delivered phishing got through because of tenant or user allow rules (transport rules that skip filtering, allowed sender or domain lists, Tenant Allow/Block List entries), often spoofing business services such as DocuSign or Adobe. These queries show threats that Defender detected but delivered anyway because of an override, excluding the phishing simulation and SecOps mailbox policies.\n\n**Custom detection:** `MDO-17`.\n\nReferences: [Email threat landscape Q3 2026](https://www.microsoft.com/en-us/security/blog/2026/11/05/email-threat-landscape-q3-2026-trends-and-insights/)"
             },
-            "name": "text-86"
+            "name": "text-87"
           },
           {
             "type": 3,
@@ -1940,7 +1967,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-87",
+            "name": "query-88",
             "customWidth": "50"
           },
           {
@@ -1956,7 +1983,7 @@
               "visualization": "timechart",
               "noDataMessage": "No matching activity in the selected time range."
             },
-            "name": "query-88",
+            "name": "query-89",
             "customWidth": "50"
           },
           {
@@ -1976,7 +2003,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-89"
+            "name": "query-90"
           },
           {
             "type": 3,
@@ -1995,7 +2022,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-90"
+            "name": "query-91"
           },
           {
             "type": 3,
@@ -2014,7 +2041,7 @@
                 "rowLimit": 500
               }
             },
-            "name": "query-91"
+            "name": "query-92"
           }
         ]
       },

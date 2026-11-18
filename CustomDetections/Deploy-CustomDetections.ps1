@@ -20,6 +20,10 @@
 .PARAMETER ExportOnly
     Write the Graph request bodies to the given folder instead of calling Graph.
 
+.PARAMETER SkipUpdateCheck
+    Don't check GitHub for a newer Phish & Chats release. The check only compares version
+    numbers and prints a notice; it never downloads or changes anything.
+
 .EXAMPLE
     .\Deploy-CustomDetections.ps1 -ExportOnly .\out
 
@@ -32,10 +36,28 @@ param(
     [ValidateSet('disabled', 'enabled')]
     [string]$Status = 'disabled',
     [string[]]$Include = @('*'),
-    [string]$ExportOnly
+    [string]$ExportOnly,
+    [switch]$SkipUpdateCheck
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Test-PhishAndChatsUpdate {
+    try {
+        $local = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\version.json') -Raw | ConvertFrom-Json
+        $remote = Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/homelabber/Phish-and-Chats/main/version.json' -TimeoutSec 5
+        if ($remote -is [string]) { $remote = $remote | ConvertFrom-Json }
+        if ([version]$remote.version -gt [version]$local.version) {
+            Write-Warning "Phish & Chats v$($remote.version) is available (you have v$($local.version)). $($remote.summary) $($remote.releaseUrl)"
+        } else {
+            Write-Verbose "Phish & Chats v$($local.version) is up to date."
+        }
+    } catch {
+        Write-Verbose "Update check skipped: $($_.Exception.Message)"
+    }
+}
+if (-not $SkipUpdateCheck) { Test-PhishAndChatsUpdate }
+
 $root = $PSScriptRoot
 $definitions = Get-Content -LiteralPath (Join-Path $root 'detections.json') -Raw | ConvertFrom-Json
 $apiBase = 'https://graph.microsoft.com/beta/security/rules/detectionRules'
