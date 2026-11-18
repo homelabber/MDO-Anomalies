@@ -4,7 +4,7 @@
     {
       "type": 1,
       "content": {
-        "json": "# Microsoft Defender for Office 365 - Mail Anomalies"
+        "json": "# Phish & Chats: MDO email and Teams anomalies"
       },
       "name": "title"
     },
@@ -223,7 +223,7 @@
           {
             "type": 1,
             "content": {
-              "json": "## MDO Mail Anomalies\nThis workbook shows mail-borne attack patterns tracked by Microsoft Threat Intelligence and surfaced by **Microsoft Defender for Office 365**. Use the tabs to drill into each anomaly. Companion **Defender XDR custom detections** are in the `CustomDetections` folder of [homelabber/MDO-Anomalies](https://github.com/homelabber/MDO-Anomalies).\n\n**Data sources:** EmailEvents, EmailUrlInfo, EmailAttachmentInfo, EmailPostDeliveryEvents, UrlClickEvents and CloudAppEvents (Microsoft Defender XDR connector), SigninLogs, AuditLogs and AADUserRiskEvents (Entra ID connector), plus Teams tables (MessageEvents, MessagePostDeliveryEvents, MessageUrlInfo, CallActivityEvents, SyntheticMediaDetectionEvents) and DeviceProcessEvents, DeviceFileEvents, DeviceRegistryEvents and IdentityInfo where available. Streaming records are deduplicated per NetworkMessageId + recipient."
+              "json": "## Phish & Chats\n*MDO email and Teams anomaly detections.*\n\nThis workbook shows email and Teams attack patterns tracked by Microsoft Threat Intelligence and surfaced by **Microsoft Defender for Office 365**. Use the tabs to drill into each anomaly. Companion **Defender XDR custom detections** are in the `CustomDetections` folder of [homelabber/Phish-and-Chats](https://github.com/homelabber/Phish-and-Chats).\n\n**Data sources:** EmailEvents, EmailUrlInfo, EmailAttachmentInfo, EmailPostDeliveryEvents, UrlClickEvents and CloudAppEvents (Microsoft Defender XDR connector), SigninLogs, AuditLogs and AADUserRiskEvents (Entra ID connector), plus Teams tables (MessageEvents, MessagePostDeliveryEvents, MessageUrlInfo, CallActivityEvents, SyntheticMediaDetectionEvents) and DeviceProcessEvents, DeviceFileEvents, DeviceRegistryEvents and IdentityInfo where available. Streaming records are deduplicated per NetworkMessageId + recipient."
             },
             "name": "text-1"
           },
@@ -2027,6 +2027,6 @@
     }
   ],
   "fallbackResourceIds": [],
-  "fromTemplateId": "sentinel-MDOMailAnomalies",
+  "fromTemplateId": "sentinel-PhishAndChats",
   "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
 }

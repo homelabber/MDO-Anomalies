@@ -1,6 +1,10 @@
-# MDO Mail Anomalies
+# Phish & Chats
 
-This repo has a **Microsoft Sentinel workbook** and a set of **Microsoft Defender XDR custom detections** for the mail-borne attack patterns that Microsoft Threat Intelligence tracks and Microsoft Defender for Office 365 (MDO) surfaces. It covers mail bombing and twelve other patterns, a view of mail flagged by MDO's LLM-based content analysis, multi-step **attack sequences** (for example a risky sign-in followed by a new inbox rule), **Microsoft Teams threats** (malicious chats, external calls, deepfakes) and threats delivered because of **allow-list overrides**.
+*MDO email and Teams anomaly detections, because attackers stopped waiting for you to open your inbox.*
+
+This repo has a **Microsoft Sentinel workbook** and a set of **Microsoft Defender XDR custom detections** for the email and Teams attack patterns that Microsoft Threat Intelligence tracks and Microsoft Defender for Office 365 (MDO) surfaces. It covers mail bombing and twelve other patterns, a view of mail flagged by MDO's LLM-based content analysis, multi-step **attack sequences** (for example a risky sign-in followed by a new inbox rule), **Microsoft Teams threats** (malicious chats, external calls, deepfakes) and threats delivered because of **allow-list overrides**.
+
+> Formerly **MDO-Anomalies**. Old GitHub links redirect here. Custom detection ids keep their `MDO-` prefix, so redeploying updates your existing rules instead of creating duplicates.
 
 Need to share findings with someone who doesn't have Sentinel open? An [HTML report export](#export-an-html-report) runs the same workbook queries and writes one self-contained file.
 
@@ -60,10 +64,10 @@ Tab 17 follows Microsoft's Q3 2026 email threat report, which found that a large
 
 ```
 Workbook/
-  MDO-Mail-Anomalies.json       # Workbook gallery template (paste into Advanced Editor)
+  Phish-and-Chats.json       # Workbook gallery template (paste into Advanced Editor)
   azuredeploy.json              # ARM template that deploys the workbook
 Report/
-  Export-MDOAnomaliesReport.ps1 # Runs the workbook queries and writes an HTML findings report
+  Export-PhishAndChatsReport.ps1 # Runs the workbook queries and writes an HTML findings report
 CustomDetections/
   detections.json               # Rule metadata: severity, frequency, entities, MITRE
   Queries/*.kql                 # One KQL query per custom detection
@@ -90,26 +94,26 @@ Workbook queries that depend on optional tables use `union isfuzzy=true`, so a m
 
 **Option 1: Deploy to Azure**
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhomelabber%2FMDO-Anomalies%2Fmain%2FWorkbook%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fhomelabber%2FPhish-and-Chats%2Fmain%2FWorkbook%2Fazuredeploy.json)
 
 Pick the resource group that contains your Sentinel workspace and provide the workspace's full resource ID.
 
 **Option 2: Paste the template**
 
 1. In Microsoft Sentinel, go to **Workbooks**, select **+ Add workbook**, then **Edit**, then **Advanced Editor** (`</>`).
-2. Replace the contents with [`Workbook/MDO-Mail-Anomalies.json`](Workbook/MDO-Mail-Anomalies.json), then select **Apply** and **Save**.
+2. Replace the contents with [`Workbook/Phish-and-Chats.json`](Workbook/Phish-and-Chats.json), then select **Apply** and **Save**.
 
 **Option 3: Azure CLI**
 
 ```bash
 az deployment group create -g <resource-group> \
-  --template-uri https://raw.githubusercontent.com/homelabber/MDO-Anomalies/main/Workbook/azuredeploy.json \
+  --template-uri https://raw.githubusercontent.com/homelabber/Phish-and-Chats/main/Workbook/azuredeploy.json \
   --parameters workspaceResourceId=<workspace-resource-id>
 ```
 
 ## Export an HTML report
 
-[`Report/Export-MDOAnomaliesReport.ps1`](Report/Export-MDOAnomaliesReport.ps1) runs every workbook query against your workspace for a time range and writes **one self-contained HTML file**: no external scripts, fonts, or images. You can attach it to an incident, email it, or open it offline. The workbook doesn't need to be deployed. The script reads the queries from `Workbook/MDO-Mail-Anomalies.json` at run time, so the report always matches your copy of the workbook.
+[`Report/Export-PhishAndChatsReport.ps1`](Report/Export-PhishAndChatsReport.ps1) runs every workbook query against your workspace for a time range and writes **one self-contained HTML file**: no external scripts, fonts, or images. You can attach it to an incident, email it, or open it offline. The workbook doesn't need to be deployed. The script reads the queries from `Workbook/Phish-and-Chats.json` at run time, so the report always matches your copy of the workbook.
 
 The report contains:
 
@@ -134,10 +138,10 @@ It prints cleanly, with one tab per page.
 Connect-AzAccount
 
 # Last 7 days, all tabs
-.\Report\Export-MDOAnomaliesReport.ps1 -WorkspaceId <workspace-guid> -TimeRange 7d
+.\Report\Export-PhishAndChatsReport.ps1 -WorkspaceId <workspace-guid> -TimeRange 7d
 
 # Incident window, only the sequence and inbox-rule tabs, with the KQL behind each result
-.\Report\Export-MDOAnomaliesReport.ps1 -WorkspaceId <workspace-guid> `
+.\Report\Export-PhishAndChatsReport.ps1 -WorkspaceId <workspace-guid> `
   -StartTime '2026-10-01 08:00' -EndTime '2026-10-02 08:00' `
   -Tab sequences, inboxrules -IncludeQueries -OutputPath .\INC-1234-mail.html
 ```
@@ -148,7 +152,7 @@ Connect-AzAccount
 | `-TimeRange` | `1d` | `1h`, `4h`, `12h`, `1d`, `3d`, `7d`, `14d` or `30d`, ending now |
 | `-StartTime` / `-EndTime` | none / now | Absolute range, used instead of `-TimeRange` |
 | `-Tab` | all | Tab ids or labels, wildcards allowed: `overview`, `bombing`, `bombteams`, `qr`, `directsend`, `smuggling`, `aitm`, `devicecode`, `bec`, `callback`, `outbound`, `zap`, `inboxrules`, `lookalike`, `llm`, `sequences`, `teams`, `overrides` |
-| `-OutputPath` | `.\MDO-Anomalies-Report-<yyyyMMdd-HHmm>.html` | Where to write the report |
+| `-OutputPath` | `.\Phish-and-Chats-Report-<yyyyMMdd-HHmm>.html` | Where to write the report |
 | `-MaxRows` | `250` | Rows shown per table. The full row count is always shown |
 | `-IncludeQueries` | off | Adds the executed KQL under each result |
 | `-Endpoint` | `https://api.loganalytics.io` | Use `https://api.loganalytics.us` for Azure Government |

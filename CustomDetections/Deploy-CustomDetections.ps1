@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Deploys the MDO-Anomalies custom detection rules to Microsoft Defender XDR.
+    Deploys the Phish & Chats custom detection rules to Microsoft Defender XDR.
 
 .DESCRIPTION
     Reads detections.json plus the matching .kql files and creates or updates each rule
